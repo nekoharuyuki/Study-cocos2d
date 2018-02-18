@@ -1,0 +1,19 @@
+{
+    "BGM":{
+        "title":"bgm/title.mp3",
+        "main":"bgm/main.mp3",
+        "result":"bgm/result.mp3"
+    },
+    "SE":{
+        "bomb":"se/bomb.mp3",
+        "catch_bomb":"se/catch_bomb.mp3",
+        "catch_fruit":"se/catch_fruit.mp3",
+        "catch_golden":"se/catch_golden.mp3",
+        "crash":"se/crash.mp3",
+        "decide":"se/decide.mp3",
+        "finish":"se/finish.mp3",
+        "golden":"se/golden.mp3",
+        "highscore":"se/highscore.mp3",
+        "start":"se/start.mp3"
+    }
+}
