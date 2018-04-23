@@ -1,6 +1,7 @@
 const Node = require('./Node');
 const Label = require('./Label');
 const Utils = require('./Utils');
+const state = require('./Global').state;
 
 class RichText extends Node {
     constructor(data) {
@@ -21,12 +22,8 @@ class RichText extends Node {
         let regex = /(<outline color|width)=(\w*) (color|width)=(\w*)/;
         text = text.replace(regex, "$1='$2' $3='$4'");
 
-        // <br/> -> \n
-        text = text.replace('<br/>', '\n');
-
-        // add <font></font> if the text starts with charactor
-        if (text[0] !== '<')
-            text = '<font>' + text + '</font>';
+        // add <font></font> for raw strings
+        text = '<font>' + text + '</font>';
 
         // add sprite frames if there is img component
         if (component._N$imageAtlas) {
@@ -55,7 +52,14 @@ class RichText extends Node {
         this._properties.lineHeight = component._N$lineHeight;
         let f = component._N$font;
         if (f)
-            this._properties.fontFilename = Utils.get_font_path_by_uuid(f.__uuid__);
+            this._properties.fontFilename = state._assetpath + Utils.get_font_path_by_uuid(f.__uuid__);
+        else
+            this._properties.fontFilename = 'Arial';
+
+        // should floor the content size, or it may cause to create a new line
+        let contentSize = this._properties.node.contentSize;
+        let newContentSize = {w:Math.ceil(contentSize.w), h:Math.ceil(contentSize.h)};
+        this._properties.node.contentSize = newContentSize;
     }
 }
 RichText.H_ALIGNMENTS = ['Left', 'Center', 'Right'];

@@ -21,7 +21,7 @@ Editor.Panel.extend({
     template: template,
 
     ready() {
-        let opts = Editor.argv.panelArgv;
+        let opts = Editor.require('packages://creator-luacpp-support/package.json');       
         let profileProject = this.profiles.project;
 
         let vm;
@@ -80,6 +80,18 @@ Editor.Panel.extend({
                 _onSetupClick(event) {
                     event.stopPropagation();
                     Editor.Panel.close('creator-luacpp-support');
+                },
+
+                _onChangeExportResourceOnly(event) {
+                    event.stopPropagation();
+                    this.profileProject.data.exportResourceOnly = event.target.value;
+                    this.profileProject.save();
+                },
+
+                _onChangeExportDynamicallyLoadResource(event) {
+                    event.stopPropagation();
+                    this.profileProject.data.exportResourceDynamicallyLoaded = event.target.value;
+                    this.profileProject.save();
                 },
 
                 _onChangeAutoBuild(event) {

@@ -23,6 +23,7 @@ public:
         addTest("CardsGame",  []() { return new CardsGamePage();  });
         addTest("KawazCatch", []() { return new KawazCatchPage(); });
         addTest("KawazJet",   []() { return new KawazJetPage();   });
+        addTest("Puzzle",     []() { return new PuzzlePage();     });
     }
 };
 

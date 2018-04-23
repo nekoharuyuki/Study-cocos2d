@@ -33,7 +33,9 @@ NS_CCR_BEGIN
 class AnimationClip: public cocos2d::Ref
 {
 public:
-    enum class WrapMode {Default, Normal, Loop, PingPong, Reverse, LoopReverse, PingPongReverse};
+
+    // refer to: https://github.com/cocos-creator/engine/blob/master/cocos2d/animation/types.js#L28
+    enum class WrapMode {Default = 0, Normal = 1, Loop = 2, PingPong = 22, Reverse = 36, LoopReverse = 38, PingPongReverse = 54};
 
     static AnimationClip* create();
     virtual ~AnimationClip();
@@ -56,9 +58,9 @@ public:
     WrapMode getWrapMode() const;
 
     void addAnimProperties(const AnimProperties& properties);
-    const std::vector<AnimProperties>& getAnimPropertiesVec() const;
-
-protected:
+    const std::vector<AnimProperties>& getAnimProperties() const;
+    
+private:
     AnimationClip();
 
     std::string _name;

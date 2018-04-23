@@ -1,5 +1,5 @@
 /****************************************************************************
- Copyright (c) 2013-2017 Chukong Technologies Inc.
+ Copyright (c) 2017 Chukong Technologies Inc.
  
  http://www.cocos2d-x.org
  
@@ -31,4 +31,4 @@ extern "C" {
 }
 #endif
 
-TOLUA_API int register_all_creator_reader_manual(lua_State* L);
+TOLUA_API int register_all_creator_dragonbones_manual(lua_State* L);

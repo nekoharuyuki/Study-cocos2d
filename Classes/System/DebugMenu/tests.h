@@ -5,5 +5,6 @@
 #include "CardsGameScene.h"
 #include "KawazCatchTitle.h"
 #include "KawazJet_TitleScene.h"
+#include "GameLayer.h"
 
 #endif

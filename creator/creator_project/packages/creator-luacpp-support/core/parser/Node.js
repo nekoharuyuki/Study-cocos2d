@@ -93,7 +93,7 @@ class Node {
             object_type: 'Node',
             children: []
         }
-        this._properties = {}
+        this._properties = {};
     }
 
     add_property_str(newkey, value, data) {
@@ -149,7 +149,18 @@ class Node {
         this.parse_node_properties();
         
         // 2nd: parse children
-        this.parse_children();  
+        this.parse_children();
+    }
+
+    /** A Node may have `cc.Sprite` and `cc.MotionStreak` components, and a Node's
+     * type is determined by its component. Then what is the type of the Node? To
+     * resolve the issue, we handle `cc.MotionStreak` component here.
+     */
+    handle_motion_streak(father) {
+        if (Node.get_node_component_of_type(this._node_data, 'cc.MotionStreak') != null) {
+            let n = Utils.create_node('cc.MotionStreak', this._node_data);
+            father.add_child(n);
+        }
     }
 
     parse_children() {
@@ -192,8 +203,10 @@ class Node {
             if (node_type != null) {
                 let n = Utils.create_node(node_type, node);
                 this.adjust_child_parameters(n);
-                if (n != null)
+                if (n != null) {
                     this.add_child(n);
+                    n.handle_motion_streak(this);
+                }
             }
         }
     }
@@ -220,13 +233,35 @@ class Node {
             };
 
             function parseCurveDataProps(props) {
+                // curve property may
+                // - doesn't exist
+                // - string
+                // - an array of data
+                function parseCurveProperty(from, to) {
+                    let curve = from.curve;
+                    if (curve) {
+                        let curve_type = typeof(curve);
+                        if (curve_type === 'string')
+                            to.curveType = curve;
+                        else {
+                            // array of data
+                            to.curveData = curve.slice();
+                        }
+                    }
+                }
+
                 function addProp(from, from_key, to, to_key) {
                     if (from[from_key]) {
-                        to[to_key] = from[from_key];
-                        // FIXME: doesn't support 'curve' field now
-                        to[to_key].forEach(function(prop){
-                            delete prop.curve;
-                        })
+                        to[to_key] = [];
+                        from[from_key].forEach(function(prop) {
+                            let value = {
+                                frame: prop.frame,
+                                value: prop.value,
+                            };
+
+                            parseCurveProperty(prop, value);
+                            to[to_key].push(value);
+                        });
                     }
                 }
 
@@ -243,25 +278,29 @@ class Node {
                 addProp(props, 'opacity', result, 'opacity');
                 
 
-                // position.value -> {x:, y:}
+                // position -> {x:, y:, curveType?, curveData?}
                 if (props.position) {
                     result.position = [];
                     props.position.forEach(function(pos) {
-                        result.position.push({
+                        let value = {
                             frame: pos.frame,
                             value: {x: pos.value[0], y: pos.value[1]}
-                        });
+                        };
+                        parseCurveProperty(pos, value);
+                        result.position.push(value);
                     });
                 }
 
-                // color: delete color.__type__
+                // color
                 if (props.color) {
                     result.color = [];
                     props.color.forEach(function(clr){
-                        result.color.push({
+                        let value = {
                             frame: clr.frame,
                             value: {r:clr.value.r, g:clr.value.g, b:clr.value.g, a:clr.value.a}
-                        });
+                        };
+                        parseCurveProperty(clr, value);
+                        result.color.push(value);
                     });
                 }
 
