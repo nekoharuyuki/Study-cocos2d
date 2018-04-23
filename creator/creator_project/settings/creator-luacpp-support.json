@@ -1,5 +1,7 @@
 {
-  "autoBuild": true,
-  "path": "/Users/nekoharuyuki/Documents/AppProject/AppCocos",
+  "autoBuild": false,
+  "exportResourceDynamicallyLoaded": false,
+  "exportResourceOnly": false,
+  "path": "",
   "setup": false
 }

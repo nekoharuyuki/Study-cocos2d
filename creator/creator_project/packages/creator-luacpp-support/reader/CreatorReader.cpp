@@ -29,6 +29,9 @@
 #include "ui/PageView.h"
 #include "collider/Collider.h"
 
+#include <vector>
+#include <cmath>
+#include <algorithm>
 
 using namespace cocos2d;
 using namespace creator;
@@ -47,9 +50,20 @@ namespace {
             for(const auto fbProp: *fbPropList) {
                 const auto fbFrame = fbProp->frame();
                 const auto fbValue = fbProp->value();
-                proplist.push_back(
-                                   {fbFrame,
-                                       fbValue
+                
+                const auto fbCurveType = fbProp->curveType();
+                std::string curveType = fbCurveType ? fbCurveType->c_str() : "";
+                
+                const auto fbCurveData = fbProp->curveData();
+                std::vector<float> curveData;
+                if (fbCurveData)
+                    for (const auto& value : *fbCurveData)
+                        curveData.push_back(value);
+                    
+                proplist.push_back({fbFrame,
+                                    fbValue,
+                                    curveData,
+                                    curveType
                                    });
             }
         }
@@ -62,9 +76,20 @@ namespace {
             for(const auto fbProp: *fbPropList) {
                 const auto fbFrame = fbProp->frame();
                 const auto fbValue = fbProp->value();
-                proplist.push_back(
-                                   {fbFrame,
-                                       cocos2d::Vec2(fbValue->x(), fbValue->y())
+                
+                const auto fbCurveType = fbProp->curveType();
+                std::string curveType = fbCurveType ? fbCurveType->c_str() : "";
+                
+                const auto fbCurveData = fbProp->curveData();
+                std::vector<float> curveData;
+                if (fbCurveData)
+                    for (const auto& value : *fbCurveData)
+                        curveData.push_back(value);
+                
+                proplist.push_back({fbFrame,
+                                    cocos2d::Vec2(fbValue->x(), fbValue->y()),
+                                    curveData,
+                                    curveType
                                    });
             }
         }
@@ -77,9 +102,20 @@ namespace {
             for(const auto fbProp: *fbPropList) {
                 const auto fbFrame = fbProp->frame();
                 const auto fbValue = fbProp->value();
-                proplist.push_back(
-                                   {fbFrame,
-                                       cocos2d::Color3B(fbValue->r(), fbValue->g(), fbValue->b())
+                
+                const auto fbCurveType = fbProp->curveType();
+                std::string curveType = fbCurveType ? fbCurveType->c_str() : "";
+                
+                const auto fbCurveData = fbProp->curveData();
+                std::vector<float> curveData;
+                if (fbCurveData)
+                    for (const auto& value : *fbCurveData)
+                        curveData.push_back(value);
+                
+                proplist.push_back({fbFrame,
+                                    cocos2d::Color3B(fbValue->r(), fbValue->g(), fbValue->b()),
+                                    curveData,
+                                    curveType
                                    });
             }
         }
@@ -90,19 +126,15 @@ namespace {
 // CreatorReader main class
 //
 CreatorReader::CreatorReader()
-: _scene(nullptr)
-, _version("")
+: _version("")
 , _positionDiffDesignResolution(0, 0)
 {
-    _animationManager = AnimationManager::create();
-    _animationManager->retain();
-    
+    _animationManager = new AnimationManager();
     _collisionManager = new ColliderManager();
 }
 
 CreatorReader::~CreatorReader()
 {
-    CC_SAFE_RELEASE_NULL(_scene);
     CC_SAFE_RELEASE_NULL(_collisionManager);
     CC_SAFE_RELEASE_NULL(_animationManager);
 }
@@ -233,6 +265,13 @@ cocos2d::Scene* CreatorReader::getSceneGraph() const
     CCLOG("NodeTree: %p", nodeTree);
 
     cocos2d::Node* node = createTree(nodeTree);
+
+    // make scene at the center of screen
+    // should not just node's position because it is a Scene, and it will cause issue that click position is not correct(it is a bug of cocos2d-x)
+    // and should not change camera's position
+    for (auto& child : node->getChildren())
+        if (dynamic_cast<Camera*>(child) == nullptr)
+            child->setPosition(child->getPosition() + _positionDiffDesignResolution);
     
     _animationManager->playOnLoad();
     
@@ -264,9 +303,10 @@ cocos2d::Node* CreatorReader::createTree(const buffers::NodeTree* tree) const
 
     const void* buffer = tree->object();
     buffers::AnyNode bufferType = tree->object_type();
-    bool treat_child_as_label = false;
+    bool parsing_button = false;
     
-    switch (static_cast<int>(bufferType)) {
+    switch (static_cast<int>(bufferType))
+    {
         case buffers::AnyNode_NONE:
             break;
         case buffers::AnyNode_Node:
@@ -298,7 +338,7 @@ cocos2d::Node* CreatorReader::createTree(const buffers::NodeTree* tree) const
             break;
         case buffers::AnyNode_Button:
             node = createButton(static_cast<const buffers::Button*>(buffer));
-            treat_child_as_label = true;
+            parsing_button = true;
             break;
         case buffers::AnyNode_EditBox:
             node = createEditBox(static_cast<const buffers::EditBox*>(buffer));
@@ -331,27 +371,32 @@ cocos2d::Node* CreatorReader::createTree(const buffers::NodeTree* tree) const
         case buffers::AnyNode_Mask:
             node = createMask(static_cast<const buffers::Mask*>(buffer));
             break;
-#if (USE_DRAGON_BONES == 1)
         case buffers::AnyNode_DragonBones:
             node = createArmatureDisplay(static_cast<const buffers::DragonBones*>(buffer));
             break;
-#endif
+        case buffers::AnyNode_MotionStreak:
+            node = createMotionStreak(static_cast<const buffers::MotionStreak*>(buffer));
+            break;
     }
 
     // recursively add its children
     const auto& children = tree->children();
-    for(const auto& childBuffer: *children) {
+    for(const auto& childBuffer: *children)
+    {
         cocos2d::Node* child = createTree(childBuffer);
-        if (child && node)  {
-            if (!treat_child_as_label) {
-                // every node should do this
-                node->addChild(child);
-                adjustPosition(child);
-            } else {
-                // except if for Buttons
+        if (child && node)
+        {
+            // should adjust child's position except Button's label
+            if (parsing_button && dynamic_cast<cocos2d::Label*>(child) != nullptr)
+            {
                 auto button = static_cast<cocos2d::ui::Button*>(node);
                 auto label = static_cast<cocos2d::Label*>(child);
                 button->setTitleLabel(label);
+            }
+            else
+            {
+                node->addChild(child);
+                adjustPosition(child);
             }
         }
     }
@@ -402,7 +447,7 @@ void CreatorReader::parseNode(cocos2d::Node* node, const buffers::Node* nodeBuff
     const auto& opacityModifyRGB = nodeBuffer->opacityModifyRGB();
     node->setOpacityModifyRGB(opacityModifyRGB);
     const auto position = nodeBuffer->position();
-    if (position) node->setPosition(cocos2d::Vec2(position->x(), position->y()) + _positionDiffDesignResolution);
+    if (position) node->setPosition(cocos2d::Vec2(position->x(), position->y()));
     node->setRotationSkewX(nodeBuffer->rotationSkewX());
     node->setRotationSkewY(nodeBuffer->rotationSkewY());
     node->setScaleX(nodeBuffer->scaleX());
@@ -449,6 +494,9 @@ void CreatorReader::parseNodeAnimation(cocos2d::Node* node, const buffers::Node*
             
             const auto& name = fbAnimationClip->name();
             animClip->setName(name->str());
+            
+            const auto& wrapMode = fbAnimationClip->wrapMode();
+            animClip->setWrapMode(static_cast<AnimationClip::WrapMode>(wrapMode));
             
             // is it defalut animation clip?
             if (hasDefaultAnimclip && name->str() == animRef->defaultClip()->str())
@@ -587,12 +635,13 @@ void CreatorReader::parseSprite(cocos2d::Sprite* sprite, const buffers::Sprite* 
             break;
     }
 
-    const auto& srcBlend = spriteBuffer->srcBlend();
-    const auto& dstBlend = spriteBuffer->dstBlend();
-    cocos2d::BlendFunc blendFunc;
-    blendFunc.src = srcBlend;
-    blendFunc.dst = dstBlend;
-    sprite->setBlendFunc(blendFunc);
+    // Creator doesn't premultiply alpha, so its blend function can not work in cocos2d-x.
+    // const auto& srcBlend = spriteBuffer->srcBlend();
+    // const auto& dstBlend = spriteBuffer->dstBlend();
+    // cocos2d::BlendFunc blendFunc;
+    // blendFunc.src = srcBlend;
+    // blendFunc.dst = dstBlend;
+    // sprite->setBlendFunc(blendFunc);
 
 #if 0
     // FIXME: do something with these values
@@ -674,6 +723,14 @@ void CreatorReader::parseLabel(cocos2d::Label* label, const buffers::Label* labe
     label->setHorizontalAlignment(static_cast<cocos2d::TextHAlignment>(horizontalA));
     label->setOverflow(static_cast<cocos2d::Label::Overflow>(overflowType));
     label->enableWrap(enableWrap);
+
+    const auto& outline = labelBuffer->outline();
+    if (outline)
+    {
+        const auto& color = outline->color();
+        label->enableOutline(cocos2d::Color4B(color->r(), color->g(), color->b(), color->a()),
+                             outline->width());
+    }
 }
 
 cocos2d::ui::RichText* CreatorReader::createRichText(const buffers::RichText* richTextBuffer) const
@@ -691,7 +748,7 @@ void CreatorReader::parseRichText(cocos2d::ui::RichText* richText, const buffers
     const auto& fontSize = richTextBuffer->fontSize();
     richText->setFontSize(fontSize);
     const auto& fontFilename = richTextBuffer->fontFilename();
-    if (fontFilename) richText->setFontFace(fontFilename->str());
+    richText->setFontFace(fontFilename->str());
     
     const auto& text = richTextBuffer->text();
     if (text)
@@ -702,12 +759,29 @@ void CreatorReader::parseRichText(cocos2d::ui::RichText* richText, const buffers
         parser.parseIntrusive(const_cast<char*>(text->c_str()), text->Length());
         
         richText->initWithXML(visitor.getOutput());
+        
+        // FIXME: content width from Creator is not correct
+        // so should recompute it here
+        
+        const auto& rawString = visitor.getRawString();
+        auto maxFontSize = visitor.getMaxFontSize();
+        int finalFontSize = std::max(static_cast<float>(maxFontSize), fontSize);
+        auto label = cocos2d::Label::createWithSystemFont(rawString, fontFilename->str(), finalFontSize);
+        
+        auto realContentSize = label->getContentSize();
+        auto finalWidth = std::max(realContentSize.width, richText->getContentSize().width);
+        richText->setContentSize(cocos2d::Size(finalWidth, richText->getContentSize().height));
     }
-    
+        
     // should do it after richText->initWithXML
+    richText->ignoreContentAdaptWithSize(false);
+    
     const auto& maxWidth = richTextBuffer->maxWidth();
     if (maxWidth > 0)
-        richText->ignoreContentAdaptWithSize(false);
+    {
+        const auto& contentSize = richText->getContentSize();
+        richText->setContentSize(cocos2d::Size(maxWidth, contentSize.height));
+    }
 }
 
 cocos2d::ParticleSystemQuad* CreatorReader::createParticle(const buffers::Particle* particleBuffer) const
@@ -1214,6 +1288,70 @@ void CreatorReader::parseMask(cocos2d::ClippingNode* mask, const buffers::Mask* 
     }
 }
 
+cocos2d::MotionStreak* CreatorReader::createMotionStreak(const buffers::MotionStreak* motionStreakBuffer) const
+{
+    const auto& timeToFade = motionStreakBuffer->timeToFade();
+    const auto& minSeg = motionStreakBuffer->minSeg();
+    const auto& strokeWidth = motionStreakBuffer->strokeWidth();
+    
+    const auto& color = motionStreakBuffer->strokeColor();
+    const cocos2d::Color3B strokeColor(color->r(), color->g(), color->b());
+    
+    const auto& imagePath = motionStreakBuffer->texturePath();
+    
+    auto motionStreak = cocos2d::MotionStreak::create(timeToFade, minSeg, strokeWidth, strokeColor, imagePath->c_str());
+    parseMotionStreak(motionStreak, motionStreakBuffer);
+    
+    return motionStreak;
+}
+
+void CreatorReader::parseMotionStreak(cocos2d::MotionStreak* motionStreak, const buffers::MotionStreak* motionStreakBuffer) const
+{
+    const auto& nodeBuffer = motionStreakBuffer->node();
+    
+    // can not reuse parseNode because MotionStreak::setOpacity will cause assert error
+    // parseNode(motionStreak, nodeBuffer);
+    {
+        auto node = motionStreak;
+        const auto& globalZOrder = nodeBuffer->globalZOrder();
+        node->setGlobalZOrder(globalZOrder);
+        const auto& localZOrder = nodeBuffer->localZOrder();
+        node->setLocalZOrder(localZOrder);
+        const auto& name = nodeBuffer->name();
+        if (name) node->setName(name->str());
+        const auto& anchorPoint = nodeBuffer->anchorPoint();
+        if (anchorPoint) node->setAnchorPoint(cocos2d::Vec2(anchorPoint->x(), anchorPoint->y()));
+        const auto& color = nodeBuffer->color();
+        if (color) node->setColor(cocos2d::Color3B(color->r(), color->g(), color->b()));
+        const auto& cascadeOpacityEnabled = nodeBuffer->cascadeOpacityEnabled();
+        node->setCascadeOpacityEnabled(cascadeOpacityEnabled);
+        const auto& opacityModifyRGB = nodeBuffer->opacityModifyRGB();
+        node->setOpacityModifyRGB(opacityModifyRGB);
+        const auto position = nodeBuffer->position();
+        if (position) node->setPosition(cocos2d::Vec2(position->x(), position->y()));
+        node->setRotationSkewX(nodeBuffer->rotationSkewX());
+        node->setRotationSkewY(nodeBuffer->rotationSkewY());
+        node->setScaleX(nodeBuffer->scaleX());
+        node->setScaleY(nodeBuffer->scaleY());
+        node->setSkewX(nodeBuffer->skewX());
+        node->setSkewY(nodeBuffer->skewY());
+        const auto& tag = nodeBuffer->tag();
+        node->setTag(tag);
+        const auto contentSize = nodeBuffer->contentSize();
+        if (contentSize) node->setContentSize(cocos2d::Size(contentSize->w(), contentSize->h()));
+        const auto enabled = nodeBuffer->enabled();
+        node->setVisible(enabled);
+        
+        // animation?
+        parseNodeAnimation(node, nodeBuffer);
+        
+        parseColliders(node, nodeBuffer);
+    }
+    
+    const auto& fastMode = motionStreakBuffer->fastMode();
+    motionStreak->setFastMode(fastMode);
+}
+
 /*=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
  *
  * Misc Nodes
@@ -1258,7 +1396,6 @@ void CreatorReader::parseSpineSkeleton(spine::SkeletonAnimation* spine, const bu
     spine->setDebugBonesEnabled(debugBones);
 }
 
-#if (USE_DRAGON_BONES == 1)
 dragonBones::CCArmatureDisplay* CreatorReader::createArmatureDisplay(const buffers::DragonBones* dragonBonesBuffer) const
 {
     const auto& boneDataPath = dragonBonesBuffer->boneDataPath();
@@ -1266,18 +1403,18 @@ dragonBones::CCArmatureDisplay* CreatorReader::createArmatureDisplay(const buffe
     
     if (boneDataPath && atlasDataPath)
     {
-        auto& factory = dragonBones::CCFactory::factory;
+        auto factory = dragonBones::CCFactory::getInstance();
         const auto& boneDataName = dragonBonesBuffer->boneDataName();
         
         // DragonBones can not reload Bone data in debug mode, may cause asset crash.
-        if (factory.getDragonBonesData(boneDataName->str()) == nullptr)
+        if (factory->getDragonBonesData(boneDataName->str()) == nullptr)
         {
-            factory.loadDragonBonesData(boneDataPath->str());
-            factory.loadTextureAtlasData(atlasDataPath->str());
+            factory->loadDragonBonesData(boneDataPath->str());
+            factory->loadTextureAtlasData(atlasDataPath->str());
         }
         
         const auto& armatureName = dragonBonesBuffer->armature();
-        auto display = factory.buildArmatureDisplay(armatureName->str());
+        auto display = factory->buildArmatureDisplay(armatureName->str());
         parseArmatureDisplay(display, dragonBonesBuffer);
         
         return display;
@@ -1298,7 +1435,6 @@ void CreatorReader::parseArmatureDisplay(dragonBones::CCArmatureDisplay* armatur
         armatureDisplay->getAnimation().play(animationName->str());
     }
 }
-#endif // (USE_DRAGON_BONES == 1)
 
 
 //

@@ -10,11 +10,16 @@ const Constants = require('./Constants');
 const Fs = require('fire-fs');
 const Del = require('del')
 const parse_fire = require('./parser/ConvertFireToJson');
+const parse_utils = require('./parser/Utils')
 
 const {WorkerBase, registerWorker} = require('./WorkerBase');
 
+const plugin_profile = 'profile://project/creator-luacpp-support.json';
+
 class BuildWorker extends WorkerBase {
     run(state, callback) {
+        Utils.recordBuild();
+
         Editor.Ipc.sendToAll('creator-luacpp-support:state-changed', 'start', 0);
         Utils.log('[creator-luacpp-support] build start');
 
@@ -27,6 +32,8 @@ class BuildWorker extends WorkerBase {
 
         Utils.getAssetsInfo(function(uuidmap) {
             let copyReourceInfos = this._convertFireToJson(uuidmap);
+            let dynamicLoadRes = this._getDynamicLoadRes(uuidmap);
+            Object.assign(copyReourceInfos, dynamicLoadRes);
             this._compileJsonToBinary(function() {
                 this._copyResources(copyReourceInfos);
                 Editor.Ipc.sendToAll('creator-luacpp-support:state-changed', 'finish', 100);
@@ -37,7 +44,7 @@ class BuildWorker extends WorkerBase {
     }
 
     _convertFireToJson(uuidmap) {
-        let fireFiles = this._getFireList();  
+        let fireFiles = this._getFireList();
         let copyReourceInfos = parse_fire(fireFiles, 'creator', Constants.JSON_PATH, uuidmap);
 
         return copyReourceInfos;
@@ -70,7 +77,6 @@ class BuildWorker extends WorkerBase {
         // - resources in assets and folder
         // - all files in reader
         // - lua binding codes(currently is missing)
-
         let projectRoot = this._state.path;
         
         // root path of resources
@@ -88,38 +94,41 @@ class BuildWorker extends WorkerBase {
             resdst = Path.join(projectRoot, 'Resources');
             classes = Path.join(projectRoot, 'Classes');
         }
-        // move all resources into 'creator' folder
-        resdst = Path.join(resdst, Constants.RESOURCE_FOLDER_NAME);
-        // remove all .cpp/.h files into 'reader'
-        classes = Path.join(classes, 'reader');
 
-        // remove previous reader and resources first
-        Del.sync(resdst, {force: true});
-        Del.sync(classes, {force: true});
-
-        // copy .ccreator
-        this._copyTo(Constants.CCREATOR_PATH, resdst, ['.ccreator'], true);
-        // copy reader
-        // should exclude binding codes for c++ project
-        Fs.copySync(Constants.READER_PATH, classes);
-        if (!isLuaProject)
+        // copy resources
         {
-            let bindingHeaderPath = Path.join(classes, 'CreatorReaderBinding.h');
-            if (Fs.existsSync(bindingHeaderPath))
-                Fs.unlink(bindingHeaderPath);
+            // copy .ccreator
+            resdst = Path.join(resdst, Constants.RESOURCE_FOLDER_NAME);
+            Del.sync(resdst, {force: true});
+            this._copyTo(Constants.CCREATOR_PATH, resdst, ['.ccreator'], true);
 
-            let bindingSourcePath = Path.join(classes, 'CreatorReaderBinding.cpp');
-            if (Fs.existsSync(bindingSourcePath))
-                Fs.unlink(bindingSourcePath);
+            // copy other resources
+            Object.keys(copyReourceInfos).forEach(function(uuid) {
+                let pathInfo = copyReourceInfos[uuid];
+                let src = pathInfo.fullpath;
+                let dst = Path.join(resdst, pathInfo.relative_path);
+                Fs.ensureDirSync(Path.dirname(dst));
+                Fs.copySync(src, dst);
+            });
         }
 
-        Object.keys(copyReourceInfos).forEach(function(uuid) {
-            let pathInfo = copyReourceInfos[uuid];
-            let src = pathInfo.fullpath;
-            let dst = Path.join(resdst, pathInfo.relative_path);
-            Fs.ensureDirSync(Path.dirname(dst));
-            Fs.copySync(src, dst);
-        });
+        let state = Editor.remote.Profile.load(plugin_profile, Constants.PROFILE_DEFAULTS);
+        if (state.data.exportResourceOnly)
+            return;
+
+        // copy reader
+        {
+            let codeFilesDist = Path.join(classes, 'reader')
+            Del.sync(codeFilesDist, {force: true});
+            Fs.copySync(Constants.READER_PATH, codeFilesDist);
+
+            // should exclude binding codes for c++ project
+            if (!isLuaProject)
+            {
+                let bindingCodesPath = Path.join(classes, 'reader/lua-bindings');
+                Del.sync(bindingCodesPath, {force: true});
+            }
+        }
     }
 
    // copy all files with ext in src to dst
@@ -165,6 +174,25 @@ class BuildWorker extends WorkerBase {
             }
         });
         return foundFiles;
+    }
+
+    // dynamically load resources located at assets/resources folder
+    _getDynamicLoadRes(uuidmap, collectedResources) {
+        let state = Editor.remote.Profile.load(plugin_profile, Constants.PROFILE_DEFAULTS);
+        if (!state.data.exportResourceDynamicallyLoaded)
+            return;
+        
+        let dynamicLoadRes = {};
+        let resourcesPath = Path.join(Constants.ASSETS_PATH, 'resources');
+
+        Object.keys(uuidmap).forEach(function(uuid) {
+            if(uuidmap[uuid].indexOf(resourcesPath) < 0)
+                return true;
+            
+            dynamicLoadRes[uuid] = parse_utils.get_relative_full_path_by_uuid(uuid);
+        });
+
+        return dynamicLoadRes;
     }
 }
 

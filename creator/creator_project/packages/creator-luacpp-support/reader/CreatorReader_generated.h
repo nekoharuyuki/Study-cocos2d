@@ -60,6 +60,8 @@ struct PageViewBackground;
 
 struct PageView;
 
+struct MotionStreak;
+
 struct SpineSkeleton;
 
 struct AnimationRef;
@@ -115,6 +117,8 @@ struct Rect;
 struct ColorRGB;
 
 struct ColorRGBA;
+
+struct LabelOutline;
 
 enum FontType {
   FontType_System = 0,
@@ -332,12 +336,13 @@ enum AnyNode {
   AnyNode_PageView = 19,
   AnyNode_Mask = 20,
   AnyNode_DragonBones = 21,
+  AnyNode_MotionStreak = 22,
   AnyNode_MIN = AnyNode_NONE,
-  AnyNode_MAX = AnyNode_DragonBones
+  AnyNode_MAX = AnyNode_MotionStreak
 };
 
 inline const char **EnumNamesAnyNode() {
-  static const char *names[] = { "NONE", "Scene", "Sprite", "Label", "Particle", "TileMap", "Node", "Button", "ProgressBar", "ScrollView", "CreatorScene", "EditBox", "RichText", "SpineSkeleton", "VideoPlayer", "WebView", "Slider", "Toggle", "ToggleGroup", "PageView", "Mask", "DragonBones", nullptr };
+  static const char *names[] = { "NONE", "Scene", "Sprite", "Label", "Particle", "TileMap", "Node", "Button", "ProgressBar", "ScrollView", "CreatorScene", "EditBox", "RichText", "SpineSkeleton", "VideoPlayer", "WebView", "Slider", "Toggle", "ToggleGroup", "PageView", "Mask", "DragonBones", "MotionStreak", nullptr };
   return names;
 }
 
@@ -431,26 +436,23 @@ template<> struct AnyNodeTraits<DragonBones> {
   static const AnyNode enum_value = AnyNode_DragonBones;
 };
 
+template<> struct AnyNodeTraits<MotionStreak> {
+  static const AnyNode enum_value = AnyNode_MotionStreak;
+};
+
 inline bool VerifyAnyNode(flatbuffers::Verifier &verifier, const void *union_obj, AnyNode type);
 
 enum AnimWrapMode {
   AnimWrapMode_Default = 0,
   AnimWrapMode_Normal = 1,
   AnimWrapMode_Loop = 2,
-  AnimWrapMode_PingPong = 3,
-  AnimWrapMode_Reverse = 4,
-  AnimWrapMode_LoopReverse = 5,
-  AnimWrapMode_PingPongReverse = 6,
+  AnimWrapMode_PingPong = 22,
+  AnimWrapMode_Reverse = 36,
+  AnimWrapMode_LoopReverse = 38,
+  AnimWrapMode_PingPongReverse = 54,
   AnimWrapMode_MIN = AnimWrapMode_Default,
   AnimWrapMode_MAX = AnimWrapMode_PingPongReverse
 };
-
-inline const char **EnumNamesAnimWrapMode() {
-  static const char *names[] = { "Default", "Normal", "Loop", "PingPong", "Reverse", "LoopReverse", "PingPongReverse", nullptr };
-  return names;
-}
-
-inline const char *EnumNameAnimWrapMode(AnimWrapMode e) { return EnumNamesAnimWrapMode()[static_cast<int>(e)]; }
 
 MANUALLY_ALIGNED_STRUCT(4) Vec2 FLATBUFFERS_FINAL_CLASS {
  private:
@@ -1122,7 +1124,8 @@ struct Label FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
     VT_FONTSIZE = 16,
     VT_FONTTYPE = 18,
     VT_OVERFLOWTYPE = 20,
-    VT_ENABLEWRAP = 22
+    VT_ENABLEWRAP = 22,
+    VT_OUTLINE = 24
   };
   const Node *node() const { return GetPointer<const Node *>(VT_NODE); }
   const flatbuffers::String *labelText() const { return GetPointer<const flatbuffers::String *>(VT_LABELTEXT); }
@@ -1134,6 +1137,7 @@ struct Label FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
   FontType fontType() const { return static_cast<FontType>(GetField<int8_t>(VT_FONTTYPE, 0)); }
   LabelOverflowType overflowType() const { return static_cast<LabelOverflowType>(GetField<int8_t>(VT_OVERFLOWTYPE, 0)); }
   bool enableWrap() const { return GetField<uint8_t>(VT_ENABLEWRAP, 0) != 0; }
+  const LabelOutline *outline() const { return GetPointer<const LabelOutline *>(VT_OUTLINE); }
   bool Verify(flatbuffers::Verifier &verifier) const {
     return VerifyTableStart(verifier) &&
            VerifyField<flatbuffers::uoffset_t>(verifier, VT_NODE) &&
@@ -1149,6 +1153,8 @@ struct Label FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
            VerifyField<int8_t>(verifier, VT_FONTTYPE) &&
            VerifyField<int8_t>(verifier, VT_OVERFLOWTYPE) &&
            VerifyField<uint8_t>(verifier, VT_ENABLEWRAP) &&
+           VerifyField<flatbuffers::uoffset_t>(verifier, VT_OUTLINE) &&
+           verifier.VerifyTable(outline()) &&
            verifier.EndTable();
   }
 };
@@ -1166,10 +1172,11 @@ struct LabelBuilder {
   void add_fontType(FontType fontType) { fbb_.AddElement<int8_t>(Label::VT_FONTTYPE, static_cast<int8_t>(fontType), 0); }
   void add_overflowType(LabelOverflowType overflowType) { fbb_.AddElement<int8_t>(Label::VT_OVERFLOWTYPE, static_cast<int8_t>(overflowType), 0); }
   void add_enableWrap(bool enableWrap) { fbb_.AddElement<uint8_t>(Label::VT_ENABLEWRAP, static_cast<uint8_t>(enableWrap), 0); }
+  void add_outline(flatbuffers::Offset<LabelOutline> outline) { fbb_.AddOffset(Label::VT_OUTLINE, outline); }
   LabelBuilder(flatbuffers::FlatBufferBuilder &_fbb) : fbb_(_fbb) { start_ = fbb_.StartTable(); }
   LabelBuilder &operator=(const LabelBuilder &);
   flatbuffers::Offset<Label> Finish() {
-    auto o = flatbuffers::Offset<Label>(fbb_.EndTable(start_, 10));
+    auto o = flatbuffers::Offset<Label>(fbb_.EndTable(start_, 11));
     return o;
   }
 };
@@ -1184,8 +1191,10 @@ inline flatbuffers::Offset<Label> CreateLabel(flatbuffers::FlatBufferBuilder &_f
     float fontSize = 0.0f,
     FontType fontType = FontType_System,
     LabelOverflowType overflowType = LabelOverflowType_None,
-    bool enableWrap = false) {
+    bool enableWrap = false,
+    flatbuffers::Offset<LabelOutline> outline = 0) {
   LabelBuilder builder_(_fbb);
+  builder_.add_outline(outline);
   builder_.add_fontSize(fontSize);
   builder_.add_fontName(fontName);
   builder_.add_lineHeight(lineHeight);
@@ -1209,8 +1218,9 @@ inline flatbuffers::Offset<Label> CreateLabelDirect(flatbuffers::FlatBufferBuild
     float fontSize = 0.0f,
     FontType fontType = FontType_System,
     LabelOverflowType overflowType = LabelOverflowType_None,
-    bool enableWrap = false) {
-  return CreateLabel(_fbb, node, labelText ? _fbb.CreateString(labelText) : 0, horizontalAlignment, verticalAlignment, lineHeight, fontName ? _fbb.CreateString(fontName) : 0, fontSize, fontType, overflowType, enableWrap);
+    bool enableWrap = false,
+    flatbuffers::Offset<LabelOutline> outline = 0) {
+  return CreateLabel(_fbb, node, labelText ? _fbb.CreateString(labelText) : 0, horizontalAlignment, verticalAlignment, lineHeight, fontName ? _fbb.CreateString(fontName) : 0, fontSize, fontType, overflowType, enableWrap, outline);
 }
 
 struct RichText FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
@@ -2443,6 +2453,86 @@ inline flatbuffers::Offset<PageView> CreatePageViewDirect(flatbuffers::FlatBuffe
   return CreatePageView(_fbb, node, inertia, bounceEnabled, direction, indicator, pages ? _fbb.CreateVector<flatbuffers::Offset<PageViewPage>>(*pages) : 0, background);
 }
 
+struct MotionStreak FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
+  enum {
+    VT_NODE = 4,
+    VT_TIMETOFADE = 6,
+    VT_MINSEG = 8,
+    VT_STROKEWIDTH = 10,
+    VT_STROKECOLOR = 12,
+    VT_TEXTUREPATH = 14,
+    VT_FASTMODE = 16
+  };
+  const Node *node() const { return GetPointer<const Node *>(VT_NODE); }
+  float timeToFade() const { return GetField<float>(VT_TIMETOFADE, 0.0f); }
+  float minSeg() const { return GetField<float>(VT_MINSEG, 0.0f); }
+  float strokeWidth() const { return GetField<float>(VT_STROKEWIDTH, 0.0f); }
+  const ColorRGB *strokeColor() const { return GetStruct<const ColorRGB *>(VT_STROKECOLOR); }
+  const flatbuffers::String *texturePath() const { return GetPointer<const flatbuffers::String *>(VT_TEXTUREPATH); }
+  bool fastMode() const { return GetField<uint8_t>(VT_FASTMODE, 0) != 0; }
+  bool Verify(flatbuffers::Verifier &verifier) const {
+    return VerifyTableStart(verifier) &&
+           VerifyField<flatbuffers::uoffset_t>(verifier, VT_NODE) &&
+           verifier.VerifyTable(node()) &&
+           VerifyField<float>(verifier, VT_TIMETOFADE) &&
+           VerifyField<float>(verifier, VT_MINSEG) &&
+           VerifyField<float>(verifier, VT_STROKEWIDTH) &&
+           VerifyField<ColorRGB>(verifier, VT_STROKECOLOR) &&
+           VerifyField<flatbuffers::uoffset_t>(verifier, VT_TEXTUREPATH) &&
+           verifier.Verify(texturePath()) &&
+           VerifyField<uint8_t>(verifier, VT_FASTMODE) &&
+           verifier.EndTable();
+  }
+};
+
+struct MotionStreakBuilder {
+  flatbuffers::FlatBufferBuilder &fbb_;
+  flatbuffers::uoffset_t start_;
+  void add_node(flatbuffers::Offset<Node> node) { fbb_.AddOffset(MotionStreak::VT_NODE, node); }
+  void add_timeToFade(float timeToFade) { fbb_.AddElement<float>(MotionStreak::VT_TIMETOFADE, timeToFade, 0.0f); }
+  void add_minSeg(float minSeg) { fbb_.AddElement<float>(MotionStreak::VT_MINSEG, minSeg, 0.0f); }
+  void add_strokeWidth(float strokeWidth) { fbb_.AddElement<float>(MotionStreak::VT_STROKEWIDTH, strokeWidth, 0.0f); }
+  void add_strokeColor(const ColorRGB *strokeColor) { fbb_.AddStruct(MotionStreak::VT_STROKECOLOR, strokeColor); }
+  void add_texturePath(flatbuffers::Offset<flatbuffers::String> texturePath) { fbb_.AddOffset(MotionStreak::VT_TEXTUREPATH, texturePath); }
+  void add_fastMode(bool fastMode) { fbb_.AddElement<uint8_t>(MotionStreak::VT_FASTMODE, static_cast<uint8_t>(fastMode), 0); }
+  MotionStreakBuilder(flatbuffers::FlatBufferBuilder &_fbb) : fbb_(_fbb) { start_ = fbb_.StartTable(); }
+  MotionStreakBuilder &operator=(const MotionStreakBuilder &);
+  flatbuffers::Offset<MotionStreak> Finish() {
+    auto o = flatbuffers::Offset<MotionStreak>(fbb_.EndTable(start_, 7));
+    return o;
+  }
+};
+
+inline flatbuffers::Offset<MotionStreak> CreateMotionStreak(flatbuffers::FlatBufferBuilder &_fbb,
+    flatbuffers::Offset<Node> node = 0,
+    float timeToFade = 0.0f,
+    float minSeg = 0.0f,
+    float strokeWidth = 0.0f,
+    const ColorRGB *strokeColor = 0,
+    flatbuffers::Offset<flatbuffers::String> texturePath = 0,
+    bool fastMode = false) {
+  MotionStreakBuilder builder_(_fbb);
+  builder_.add_texturePath(texturePath);
+  builder_.add_strokeColor(strokeColor);
+  builder_.add_strokeWidth(strokeWidth);
+  builder_.add_minSeg(minSeg);
+  builder_.add_timeToFade(timeToFade);
+  builder_.add_node(node);
+  builder_.add_fastMode(fastMode);
+  return builder_.Finish();
+}
+
+inline flatbuffers::Offset<MotionStreak> CreateMotionStreakDirect(flatbuffers::FlatBufferBuilder &_fbb,
+    flatbuffers::Offset<Node> node = 0,
+    float timeToFade = 0.0f,
+    float minSeg = 0.0f,
+    float strokeWidth = 0.0f,
+    const ColorRGB *strokeColor = 0,
+    const char *texturePath = nullptr,
+    bool fastMode = false) {
+  return CreateMotionStreak(_fbb, node, timeToFade, minSeg, strokeWidth, strokeColor, texturePath ? _fbb.CreateString(texturePath) : 0, fastMode);
+}
+
 struct SpineSkeleton FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
   enum {
     VT_NODE = 4,
@@ -3056,14 +3146,22 @@ inline flatbuffers::Offset<AnimEvents> CreateAnimEvents(flatbuffers::FlatBufferB
 struct AnimPropRotation FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
   enum {
     VT_FRAME = 4,
-    VT_VALUE = 6
+    VT_VALUE = 6,
+    VT_CURVETYPE = 8,
+    VT_CURVEDATA = 10
   };
   float frame() const { return GetField<float>(VT_FRAME, 0.0f); }
   float value() const { return GetField<float>(VT_VALUE, 0.0f); }
+  const flatbuffers::String *curveType() const { return GetPointer<const flatbuffers::String *>(VT_CURVETYPE); }
+  const flatbuffers::Vector<float> *curveData() const { return GetPointer<const flatbuffers::Vector<float> *>(VT_CURVEDATA); }
   bool Verify(flatbuffers::Verifier &verifier) const {
     return VerifyTableStart(verifier) &&
            VerifyField<float>(verifier, VT_FRAME) &&
            VerifyField<float>(verifier, VT_VALUE) &&
+           VerifyField<flatbuffers::uoffset_t>(verifier, VT_CURVETYPE) &&
+           verifier.Verify(curveType()) &&
+           VerifyField<flatbuffers::uoffset_t>(verifier, VT_CURVEDATA) &&
+           verifier.Verify(curveData()) &&
            verifier.EndTable();
   }
 };
@@ -3073,34 +3171,56 @@ struct AnimPropRotationBuilder {
   flatbuffers::uoffset_t start_;
   void add_frame(float frame) { fbb_.AddElement<float>(AnimPropRotation::VT_FRAME, frame, 0.0f); }
   void add_value(float value) { fbb_.AddElement<float>(AnimPropRotation::VT_VALUE, value, 0.0f); }
+  void add_curveType(flatbuffers::Offset<flatbuffers::String> curveType) { fbb_.AddOffset(AnimPropRotation::VT_CURVETYPE, curveType); }
+  void add_curveData(flatbuffers::Offset<flatbuffers::Vector<float>> curveData) { fbb_.AddOffset(AnimPropRotation::VT_CURVEDATA, curveData); }
   AnimPropRotationBuilder(flatbuffers::FlatBufferBuilder &_fbb) : fbb_(_fbb) { start_ = fbb_.StartTable(); }
   AnimPropRotationBuilder &operator=(const AnimPropRotationBuilder &);
   flatbuffers::Offset<AnimPropRotation> Finish() {
-    auto o = flatbuffers::Offset<AnimPropRotation>(fbb_.EndTable(start_, 2));
+    auto o = flatbuffers::Offset<AnimPropRotation>(fbb_.EndTable(start_, 4));
     return o;
   }
 };
 
 inline flatbuffers::Offset<AnimPropRotation> CreateAnimPropRotation(flatbuffers::FlatBufferBuilder &_fbb,
     float frame = 0.0f,
-    float value = 0.0f) {
+    float value = 0.0f,
+    flatbuffers::Offset<flatbuffers::String> curveType = 0,
+    flatbuffers::Offset<flatbuffers::Vector<float>> curveData = 0) {
   AnimPropRotationBuilder builder_(_fbb);
+  builder_.add_curveData(curveData);
+  builder_.add_curveType(curveType);
   builder_.add_value(value);
   builder_.add_frame(frame);
   return builder_.Finish();
 }
 
+inline flatbuffers::Offset<AnimPropRotation> CreateAnimPropRotationDirect(flatbuffers::FlatBufferBuilder &_fbb,
+    float frame = 0.0f,
+    float value = 0.0f,
+    const char *curveType = nullptr,
+    const std::vector<float> *curveData = nullptr) {
+  return CreateAnimPropRotation(_fbb, frame, value, curveType ? _fbb.CreateString(curveType) : 0, curveData ? _fbb.CreateVector<float>(*curveData) : 0);
+}
+
 struct AnimPropPosition FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
   enum {
     VT_FRAME = 4,
-    VT_VALUE = 6
+    VT_VALUE = 6,
+    VT_CURVETYPE = 8,
+    VT_CURVEDATA = 10
   };
   float frame() const { return GetField<float>(VT_FRAME, 0.0f); }
   const Vec2 *value() const { return GetStruct<const Vec2 *>(VT_VALUE); }
+  const flatbuffers::String *curveType() const { return GetPointer<const flatbuffers::String *>(VT_CURVETYPE); }
+  const flatbuffers::Vector<float> *curveData() const { return GetPointer<const flatbuffers::Vector<float> *>(VT_CURVEDATA); }
   bool Verify(flatbuffers::Verifier &verifier) const {
     return VerifyTableStart(verifier) &&
            VerifyField<float>(verifier, VT_FRAME) &&
            VerifyField<Vec2>(verifier, VT_VALUE) &&
+           VerifyField<flatbuffers::uoffset_t>(verifier, VT_CURVETYPE) &&
+           verifier.Verify(curveType()) &&
+           VerifyField<flatbuffers::uoffset_t>(verifier, VT_CURVEDATA) &&
+           verifier.Verify(curveData()) &&
            verifier.EndTable();
   }
 };
@@ -3110,34 +3230,56 @@ struct AnimPropPositionBuilder {
   flatbuffers::uoffset_t start_;
   void add_frame(float frame) { fbb_.AddElement<float>(AnimPropPosition::VT_FRAME, frame, 0.0f); }
   void add_value(const Vec2 *value) { fbb_.AddStruct(AnimPropPosition::VT_VALUE, value); }
+  void add_curveType(flatbuffers::Offset<flatbuffers::String> curveType) { fbb_.AddOffset(AnimPropPosition::VT_CURVETYPE, curveType); }
+  void add_curveData(flatbuffers::Offset<flatbuffers::Vector<float>> curveData) { fbb_.AddOffset(AnimPropPosition::VT_CURVEDATA, curveData); }
   AnimPropPositionBuilder(flatbuffers::FlatBufferBuilder &_fbb) : fbb_(_fbb) { start_ = fbb_.StartTable(); }
   AnimPropPositionBuilder &operator=(const AnimPropPositionBuilder &);
   flatbuffers::Offset<AnimPropPosition> Finish() {
-    auto o = flatbuffers::Offset<AnimPropPosition>(fbb_.EndTable(start_, 2));
+    auto o = flatbuffers::Offset<AnimPropPosition>(fbb_.EndTable(start_, 4));
     return o;
   }
 };
 
 inline flatbuffers::Offset<AnimPropPosition> CreateAnimPropPosition(flatbuffers::FlatBufferBuilder &_fbb,
     float frame = 0.0f,
-    const Vec2 *value = 0) {
+    const Vec2 *value = 0,
+    flatbuffers::Offset<flatbuffers::String> curveType = 0,
+    flatbuffers::Offset<flatbuffers::Vector<float>> curveData = 0) {
   AnimPropPositionBuilder builder_(_fbb);
+  builder_.add_curveData(curveData);
+  builder_.add_curveType(curveType);
   builder_.add_value(value);
   builder_.add_frame(frame);
   return builder_.Finish();
 }
 
+inline flatbuffers::Offset<AnimPropPosition> CreateAnimPropPositionDirect(flatbuffers::FlatBufferBuilder &_fbb,
+    float frame = 0.0f,
+    const Vec2 *value = 0,
+    const char *curveType = nullptr,
+    const std::vector<float> *curveData = nullptr) {
+  return CreateAnimPropPosition(_fbb, frame, value, curveType ? _fbb.CreateString(curveType) : 0, curveData ? _fbb.CreateVector<float>(*curveData) : 0);
+}
+
 struct AnimPropPositionX FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
   enum {
     VT_FRAME = 4,
-    VT_VALUE = 6
+    VT_VALUE = 6,
+    VT_CURVETYPE = 8,
+    VT_CURVEDATA = 10
   };
   float frame() const { return GetField<float>(VT_FRAME, 0.0f); }
   float value() const { return GetField<float>(VT_VALUE, 0.0f); }
+  const flatbuffers::String *curveType() const { return GetPointer<const flatbuffers::String *>(VT_CURVETYPE); }
+  const flatbuffers::Vector<float> *curveData() const { return GetPointer<const flatbuffers::Vector<float> *>(VT_CURVEDATA); }
   bool Verify(flatbuffers::Verifier &verifier) const {
     return VerifyTableStart(verifier) &&
            VerifyField<float>(verifier, VT_FRAME) &&
            VerifyField<float>(verifier, VT_VALUE) &&
+           VerifyField<flatbuffers::uoffset_t>(verifier, VT_CURVETYPE) &&
+           verifier.Verify(curveType()) &&
+           VerifyField<flatbuffers::uoffset_t>(verifier, VT_CURVEDATA) &&
+           verifier.Verify(curveData()) &&
            verifier.EndTable();
   }
 };
@@ -3147,34 +3289,56 @@ struct AnimPropPositionXBuilder {
   flatbuffers::uoffset_t start_;
   void add_frame(float frame) { fbb_.AddElement<float>(AnimPropPositionX::VT_FRAME, frame, 0.0f); }
   void add_value(float value) { fbb_.AddElement<float>(AnimPropPositionX::VT_VALUE, value, 0.0f); }
+  void add_curveType(flatbuffers::Offset<flatbuffers::String> curveType) { fbb_.AddOffset(AnimPropPositionX::VT_CURVETYPE, curveType); }
+  void add_curveData(flatbuffers::Offset<flatbuffers::Vector<float>> curveData) { fbb_.AddOffset(AnimPropPositionX::VT_CURVEDATA, curveData); }
   AnimPropPositionXBuilder(flatbuffers::FlatBufferBuilder &_fbb) : fbb_(_fbb) { start_ = fbb_.StartTable(); }
   AnimPropPositionXBuilder &operator=(const AnimPropPositionXBuilder &);
   flatbuffers::Offset<AnimPropPositionX> Finish() {
-    auto o = flatbuffers::Offset<AnimPropPositionX>(fbb_.EndTable(start_, 2));
+    auto o = flatbuffers::Offset<AnimPropPositionX>(fbb_.EndTable(start_, 4));
     return o;
   }
 };
 
 inline flatbuffers::Offset<AnimPropPositionX> CreateAnimPropPositionX(flatbuffers::FlatBufferBuilder &_fbb,
     float frame = 0.0f,
-    float value = 0.0f) {
+    float value = 0.0f,
+    flatbuffers::Offset<flatbuffers::String> curveType = 0,
+    flatbuffers::Offset<flatbuffers::Vector<float>> curveData = 0) {
   AnimPropPositionXBuilder builder_(_fbb);
+  builder_.add_curveData(curveData);
+  builder_.add_curveType(curveType);
   builder_.add_value(value);
   builder_.add_frame(frame);
   return builder_.Finish();
 }
 
+inline flatbuffers::Offset<AnimPropPositionX> CreateAnimPropPositionXDirect(flatbuffers::FlatBufferBuilder &_fbb,
+    float frame = 0.0f,
+    float value = 0.0f,
+    const char *curveType = nullptr,
+    const std::vector<float> *curveData = nullptr) {
+  return CreateAnimPropPositionX(_fbb, frame, value, curveType ? _fbb.CreateString(curveType) : 0, curveData ? _fbb.CreateVector<float>(*curveData) : 0);
+}
+
 struct AnimPropPositionY FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
   enum {
     VT_FRAME = 4,
-    VT_VALUE = 6
+    VT_VALUE = 6,
+    VT_CURVETYPE = 8,
+    VT_CURVEDATA = 10
   };
   float frame() const { return GetField<float>(VT_FRAME, 0.0f); }
   float value() const { return GetField<float>(VT_VALUE, 0.0f); }
+  const flatbuffers::String *curveType() const { return GetPointer<const flatbuffers::String *>(VT_CURVETYPE); }
+  const flatbuffers::Vector<float> *curveData() const { return GetPointer<const flatbuffers::Vector<float> *>(VT_CURVEDATA); }
   bool Verify(flatbuffers::Verifier &verifier) const {
     return VerifyTableStart(verifier) &&
            VerifyField<float>(verifier, VT_FRAME) &&
            VerifyField<float>(verifier, VT_VALUE) &&
+           VerifyField<flatbuffers::uoffset_t>(verifier, VT_CURVETYPE) &&
+           verifier.Verify(curveType()) &&
+           VerifyField<flatbuffers::uoffset_t>(verifier, VT_CURVEDATA) &&
+           verifier.Verify(curveData()) &&
            verifier.EndTable();
   }
 };
@@ -3184,34 +3348,56 @@ struct AnimPropPositionYBuilder {
   flatbuffers::uoffset_t start_;
   void add_frame(float frame) { fbb_.AddElement<float>(AnimPropPositionY::VT_FRAME, frame, 0.0f); }
   void add_value(float value) { fbb_.AddElement<float>(AnimPropPositionY::VT_VALUE, value, 0.0f); }
+  void add_curveType(flatbuffers::Offset<flatbuffers::String> curveType) { fbb_.AddOffset(AnimPropPositionY::VT_CURVETYPE, curveType); }
+  void add_curveData(flatbuffers::Offset<flatbuffers::Vector<float>> curveData) { fbb_.AddOffset(AnimPropPositionY::VT_CURVEDATA, curveData); }
   AnimPropPositionYBuilder(flatbuffers::FlatBufferBuilder &_fbb) : fbb_(_fbb) { start_ = fbb_.StartTable(); }
   AnimPropPositionYBuilder &operator=(const AnimPropPositionYBuilder &);
   flatbuffers::Offset<AnimPropPositionY> Finish() {
-    auto o = flatbuffers::Offset<AnimPropPositionY>(fbb_.EndTable(start_, 2));
+    auto o = flatbuffers::Offset<AnimPropPositionY>(fbb_.EndTable(start_, 4));
     return o;
   }
 };
 
 inline flatbuffers::Offset<AnimPropPositionY> CreateAnimPropPositionY(flatbuffers::FlatBufferBuilder &_fbb,
     float frame = 0.0f,
-    float value = 0.0f) {
+    float value = 0.0f,
+    flatbuffers::Offset<flatbuffers::String> curveType = 0,
+    flatbuffers::Offset<flatbuffers::Vector<float>> curveData = 0) {
   AnimPropPositionYBuilder builder_(_fbb);
+  builder_.add_curveData(curveData);
+  builder_.add_curveType(curveType);
   builder_.add_value(value);
   builder_.add_frame(frame);
   return builder_.Finish();
 }
 
+inline flatbuffers::Offset<AnimPropPositionY> CreateAnimPropPositionYDirect(flatbuffers::FlatBufferBuilder &_fbb,
+    float frame = 0.0f,
+    float value = 0.0f,
+    const char *curveType = nullptr,
+    const std::vector<float> *curveData = nullptr) {
+  return CreateAnimPropPositionY(_fbb, frame, value, curveType ? _fbb.CreateString(curveType) : 0, curveData ? _fbb.CreateVector<float>(*curveData) : 0);
+}
+
 struct AnimPropScaleX FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
   enum {
     VT_FRAME = 4,
-    VT_VALUE = 6
+    VT_VALUE = 6,
+    VT_CURVETYPE = 8,
+    VT_CURVEDATA = 10
   };
   float frame() const { return GetField<float>(VT_FRAME, 0.0f); }
   float value() const { return GetField<float>(VT_VALUE, 0.0f); }
+  const flatbuffers::String *curveType() const { return GetPointer<const flatbuffers::String *>(VT_CURVETYPE); }
+  const flatbuffers::Vector<float> *curveData() const { return GetPointer<const flatbuffers::Vector<float> *>(VT_CURVEDATA); }
   bool Verify(flatbuffers::Verifier &verifier) const {
     return VerifyTableStart(verifier) &&
            VerifyField<float>(verifier, VT_FRAME) &&
            VerifyField<float>(verifier, VT_VALUE) &&
+           VerifyField<flatbuffers::uoffset_t>(verifier, VT_CURVETYPE) &&
+           verifier.Verify(curveType()) &&
+           VerifyField<flatbuffers::uoffset_t>(verifier, VT_CURVEDATA) &&
+           verifier.Verify(curveData()) &&
            verifier.EndTable();
   }
 };
@@ -3221,34 +3407,56 @@ struct AnimPropScaleXBuilder {
   flatbuffers::uoffset_t start_;
   void add_frame(float frame) { fbb_.AddElement<float>(AnimPropScaleX::VT_FRAME, frame, 0.0f); }
   void add_value(float value) { fbb_.AddElement<float>(AnimPropScaleX::VT_VALUE, value, 0.0f); }
+  void add_curveType(flatbuffers::Offset<flatbuffers::String> curveType) { fbb_.AddOffset(AnimPropScaleX::VT_CURVETYPE, curveType); }
+  void add_curveData(flatbuffers::Offset<flatbuffers::Vector<float>> curveData) { fbb_.AddOffset(AnimPropScaleX::VT_CURVEDATA, curveData); }
   AnimPropScaleXBuilder(flatbuffers::FlatBufferBuilder &_fbb) : fbb_(_fbb) { start_ = fbb_.StartTable(); }
   AnimPropScaleXBuilder &operator=(const AnimPropScaleXBuilder &);
   flatbuffers::Offset<AnimPropScaleX> Finish() {
-    auto o = flatbuffers::Offset<AnimPropScaleX>(fbb_.EndTable(start_, 2));
+    auto o = flatbuffers::Offset<AnimPropScaleX>(fbb_.EndTable(start_, 4));
     return o;
   }
 };
 
 inline flatbuffers::Offset<AnimPropScaleX> CreateAnimPropScaleX(flatbuffers::FlatBufferBuilder &_fbb,
     float frame = 0.0f,
-    float value = 0.0f) {
+    float value = 0.0f,
+    flatbuffers::Offset<flatbuffers::String> curveType = 0,
+    flatbuffers::Offset<flatbuffers::Vector<float>> curveData = 0) {
   AnimPropScaleXBuilder builder_(_fbb);
+  builder_.add_curveData(curveData);
+  builder_.add_curveType(curveType);
   builder_.add_value(value);
   builder_.add_frame(frame);
   return builder_.Finish();
 }
 
+inline flatbuffers::Offset<AnimPropScaleX> CreateAnimPropScaleXDirect(flatbuffers::FlatBufferBuilder &_fbb,
+    float frame = 0.0f,
+    float value = 0.0f,
+    const char *curveType = nullptr,
+    const std::vector<float> *curveData = nullptr) {
+  return CreateAnimPropScaleX(_fbb, frame, value, curveType ? _fbb.CreateString(curveType) : 0, curveData ? _fbb.CreateVector<float>(*curveData) : 0);
+}
+
 struct AnimPropScaleY FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
   enum {
     VT_FRAME = 4,
-    VT_VALUE = 6
+    VT_VALUE = 6,
+    VT_CURVETYPE = 8,
+    VT_CURVEDATA = 10
   };
   float frame() const { return GetField<float>(VT_FRAME, 0.0f); }
   float value() const { return GetField<float>(VT_VALUE, 0.0f); }
+  const flatbuffers::String *curveType() const { return GetPointer<const flatbuffers::String *>(VT_CURVETYPE); }
+  const flatbuffers::Vector<float> *curveData() const { return GetPointer<const flatbuffers::Vector<float> *>(VT_CURVEDATA); }
   bool Verify(flatbuffers::Verifier &verifier) const {
     return VerifyTableStart(verifier) &&
            VerifyField<float>(verifier, VT_FRAME) &&
            VerifyField<float>(verifier, VT_VALUE) &&
+           VerifyField<flatbuffers::uoffset_t>(verifier, VT_CURVETYPE) &&
+           verifier.Verify(curveType()) &&
+           VerifyField<flatbuffers::uoffset_t>(verifier, VT_CURVEDATA) &&
+           verifier.Verify(curveData()) &&
            verifier.EndTable();
   }
 };
@@ -3258,34 +3466,56 @@ struct AnimPropScaleYBuilder {
   flatbuffers::uoffset_t start_;
   void add_frame(float frame) { fbb_.AddElement<float>(AnimPropScaleY::VT_FRAME, frame, 0.0f); }
   void add_value(float value) { fbb_.AddElement<float>(AnimPropScaleY::VT_VALUE, value, 0.0f); }
+  void add_curveType(flatbuffers::Offset<flatbuffers::String> curveType) { fbb_.AddOffset(AnimPropScaleY::VT_CURVETYPE, curveType); }
+  void add_curveData(flatbuffers::Offset<flatbuffers::Vector<float>> curveData) { fbb_.AddOffset(AnimPropScaleY::VT_CURVEDATA, curveData); }
   AnimPropScaleYBuilder(flatbuffers::FlatBufferBuilder &_fbb) : fbb_(_fbb) { start_ = fbb_.StartTable(); }
   AnimPropScaleYBuilder &operator=(const AnimPropScaleYBuilder &);
   flatbuffers::Offset<AnimPropScaleY> Finish() {
-    auto o = flatbuffers::Offset<AnimPropScaleY>(fbb_.EndTable(start_, 2));
+    auto o = flatbuffers::Offset<AnimPropScaleY>(fbb_.EndTable(start_, 4));
     return o;
   }
 };
 
 inline flatbuffers::Offset<AnimPropScaleY> CreateAnimPropScaleY(flatbuffers::FlatBufferBuilder &_fbb,
     float frame = 0.0f,
-    float value = 0.0f) {
+    float value = 0.0f,
+    flatbuffers::Offset<flatbuffers::String> curveType = 0,
+    flatbuffers::Offset<flatbuffers::Vector<float>> curveData = 0) {
   AnimPropScaleYBuilder builder_(_fbb);
+  builder_.add_curveData(curveData);
+  builder_.add_curveType(curveType);
   builder_.add_value(value);
   builder_.add_frame(frame);
   return builder_.Finish();
 }
 
+inline flatbuffers::Offset<AnimPropScaleY> CreateAnimPropScaleYDirect(flatbuffers::FlatBufferBuilder &_fbb,
+    float frame = 0.0f,
+    float value = 0.0f,
+    const char *curveType = nullptr,
+    const std::vector<float> *curveData = nullptr) {
+  return CreateAnimPropScaleY(_fbb, frame, value, curveType ? _fbb.CreateString(curveType) : 0, curveData ? _fbb.CreateVector<float>(*curveData) : 0);
+}
+
 struct AnimPropWidth FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
   enum {
     VT_FRAME = 4,
-    VT_VALUE = 6
+    VT_VALUE = 6,
+    VT_CURVETYPE = 8,
+    VT_CURVEDATA = 10
   };
   float frame() const { return GetField<float>(VT_FRAME, 0.0f); }
   float value() const { return GetField<float>(VT_VALUE, 0.0f); }
+  const flatbuffers::String *curveType() const { return GetPointer<const flatbuffers::String *>(VT_CURVETYPE); }
+  const flatbuffers::Vector<float> *curveData() const { return GetPointer<const flatbuffers::Vector<float> *>(VT_CURVEDATA); }
   bool Verify(flatbuffers::Verifier &verifier) const {
     return VerifyTableStart(verifier) &&
            VerifyField<float>(verifier, VT_FRAME) &&
            VerifyField<float>(verifier, VT_VALUE) &&
+           VerifyField<flatbuffers::uoffset_t>(verifier, VT_CURVETYPE) &&
+           verifier.Verify(curveType()) &&
+           VerifyField<flatbuffers::uoffset_t>(verifier, VT_CURVEDATA) &&
+           verifier.Verify(curveData()) &&
            verifier.EndTable();
   }
 };
@@ -3295,34 +3525,56 @@ struct AnimPropWidthBuilder {
   flatbuffers::uoffset_t start_;
   void add_frame(float frame) { fbb_.AddElement<float>(AnimPropWidth::VT_FRAME, frame, 0.0f); }
   void add_value(float value) { fbb_.AddElement<float>(AnimPropWidth::VT_VALUE, value, 0.0f); }
+  void add_curveType(flatbuffers::Offset<flatbuffers::String> curveType) { fbb_.AddOffset(AnimPropWidth::VT_CURVETYPE, curveType); }
+  void add_curveData(flatbuffers::Offset<flatbuffers::Vector<float>> curveData) { fbb_.AddOffset(AnimPropWidth::VT_CURVEDATA, curveData); }
   AnimPropWidthBuilder(flatbuffers::FlatBufferBuilder &_fbb) : fbb_(_fbb) { start_ = fbb_.StartTable(); }
   AnimPropWidthBuilder &operator=(const AnimPropWidthBuilder &);
   flatbuffers::Offset<AnimPropWidth> Finish() {
-    auto o = flatbuffers::Offset<AnimPropWidth>(fbb_.EndTable(start_, 2));
+    auto o = flatbuffers::Offset<AnimPropWidth>(fbb_.EndTable(start_, 4));
     return o;
   }
 };
 
 inline flatbuffers::Offset<AnimPropWidth> CreateAnimPropWidth(flatbuffers::FlatBufferBuilder &_fbb,
     float frame = 0.0f,
-    float value = 0.0f) {
+    float value = 0.0f,
+    flatbuffers::Offset<flatbuffers::String> curveType = 0,
+    flatbuffers::Offset<flatbuffers::Vector<float>> curveData = 0) {
   AnimPropWidthBuilder builder_(_fbb);
+  builder_.add_curveData(curveData);
+  builder_.add_curveType(curveType);
   builder_.add_value(value);
   builder_.add_frame(frame);
   return builder_.Finish();
 }
 
+inline flatbuffers::Offset<AnimPropWidth> CreateAnimPropWidthDirect(flatbuffers::FlatBufferBuilder &_fbb,
+    float frame = 0.0f,
+    float value = 0.0f,
+    const char *curveType = nullptr,
+    const std::vector<float> *curveData = nullptr) {
+  return CreateAnimPropWidth(_fbb, frame, value, curveType ? _fbb.CreateString(curveType) : 0, curveData ? _fbb.CreateVector<float>(*curveData) : 0);
+}
+
 struct AnimPropHeight FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
   enum {
     VT_FRAME = 4,
-    VT_VALUE = 6
+    VT_VALUE = 6,
+    VT_CURVETYPE = 8,
+    VT_CURVEDATA = 10
   };
   float frame() const { return GetField<float>(VT_FRAME, 0.0f); }
   float value() const { return GetField<float>(VT_VALUE, 0.0f); }
+  const flatbuffers::String *curveType() const { return GetPointer<const flatbuffers::String *>(VT_CURVETYPE); }
+  const flatbuffers::Vector<float> *curveData() const { return GetPointer<const flatbuffers::Vector<float> *>(VT_CURVEDATA); }
   bool Verify(flatbuffers::Verifier &verifier) const {
     return VerifyTableStart(verifier) &&
            VerifyField<float>(verifier, VT_FRAME) &&
            VerifyField<float>(verifier, VT_VALUE) &&
+           VerifyField<flatbuffers::uoffset_t>(verifier, VT_CURVETYPE) &&
+           verifier.Verify(curveType()) &&
+           VerifyField<flatbuffers::uoffset_t>(verifier, VT_CURVEDATA) &&
+           verifier.Verify(curveData()) &&
            verifier.EndTable();
   }
 };
@@ -3332,34 +3584,56 @@ struct AnimPropHeightBuilder {
   flatbuffers::uoffset_t start_;
   void add_frame(float frame) { fbb_.AddElement<float>(AnimPropHeight::VT_FRAME, frame, 0.0f); }
   void add_value(float value) { fbb_.AddElement<float>(AnimPropHeight::VT_VALUE, value, 0.0f); }
+  void add_curveType(flatbuffers::Offset<flatbuffers::String> curveType) { fbb_.AddOffset(AnimPropHeight::VT_CURVETYPE, curveType); }
+  void add_curveData(flatbuffers::Offset<flatbuffers::Vector<float>> curveData) { fbb_.AddOffset(AnimPropHeight::VT_CURVEDATA, curveData); }
   AnimPropHeightBuilder(flatbuffers::FlatBufferBuilder &_fbb) : fbb_(_fbb) { start_ = fbb_.StartTable(); }
   AnimPropHeightBuilder &operator=(const AnimPropHeightBuilder &);
   flatbuffers::Offset<AnimPropHeight> Finish() {
-    auto o = flatbuffers::Offset<AnimPropHeight>(fbb_.EndTable(start_, 2));
+    auto o = flatbuffers::Offset<AnimPropHeight>(fbb_.EndTable(start_, 4));
     return o;
   }
 };
 
 inline flatbuffers::Offset<AnimPropHeight> CreateAnimPropHeight(flatbuffers::FlatBufferBuilder &_fbb,
     float frame = 0.0f,
-    float value = 0.0f) {
+    float value = 0.0f,
+    flatbuffers::Offset<flatbuffers::String> curveType = 0,
+    flatbuffers::Offset<flatbuffers::Vector<float>> curveData = 0) {
   AnimPropHeightBuilder builder_(_fbb);
+  builder_.add_curveData(curveData);
+  builder_.add_curveType(curveType);
   builder_.add_value(value);
   builder_.add_frame(frame);
   return builder_.Finish();
 }
 
+inline flatbuffers::Offset<AnimPropHeight> CreateAnimPropHeightDirect(flatbuffers::FlatBufferBuilder &_fbb,
+    float frame = 0.0f,
+    float value = 0.0f,
+    const char *curveType = nullptr,
+    const std::vector<float> *curveData = nullptr) {
+  return CreateAnimPropHeight(_fbb, frame, value, curveType ? _fbb.CreateString(curveType) : 0, curveData ? _fbb.CreateVector<float>(*curveData) : 0);
+}
+
 struct AnimPropColor FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
   enum {
     VT_FRAME = 4,
-    VT_VALUE = 6
+    VT_VALUE = 6,
+    VT_CURVETYPE = 8,
+    VT_CURVEDATA = 10
   };
   float frame() const { return GetField<float>(VT_FRAME, 0.0f); }
   const ColorRGBA *value() const { return GetStruct<const ColorRGBA *>(VT_VALUE); }
+  const flatbuffers::String *curveType() const { return GetPointer<const flatbuffers::String *>(VT_CURVETYPE); }
+  const flatbuffers::Vector<float> *curveData() const { return GetPointer<const flatbuffers::Vector<float> *>(VT_CURVEDATA); }
   bool Verify(flatbuffers::Verifier &verifier) const {
     return VerifyTableStart(verifier) &&
            VerifyField<float>(verifier, VT_FRAME) &&
            VerifyField<ColorRGBA>(verifier, VT_VALUE) &&
+           VerifyField<flatbuffers::uoffset_t>(verifier, VT_CURVETYPE) &&
+           verifier.Verify(curveType()) &&
+           VerifyField<flatbuffers::uoffset_t>(verifier, VT_CURVEDATA) &&
+           verifier.Verify(curveData()) &&
            verifier.EndTable();
   }
 };
@@ -3369,34 +3643,56 @@ struct AnimPropColorBuilder {
   flatbuffers::uoffset_t start_;
   void add_frame(float frame) { fbb_.AddElement<float>(AnimPropColor::VT_FRAME, frame, 0.0f); }
   void add_value(const ColorRGBA *value) { fbb_.AddStruct(AnimPropColor::VT_VALUE, value); }
+  void add_curveType(flatbuffers::Offset<flatbuffers::String> curveType) { fbb_.AddOffset(AnimPropColor::VT_CURVETYPE, curveType); }
+  void add_curveData(flatbuffers::Offset<flatbuffers::Vector<float>> curveData) { fbb_.AddOffset(AnimPropColor::VT_CURVEDATA, curveData); }
   AnimPropColorBuilder(flatbuffers::FlatBufferBuilder &_fbb) : fbb_(_fbb) { start_ = fbb_.StartTable(); }
   AnimPropColorBuilder &operator=(const AnimPropColorBuilder &);
   flatbuffers::Offset<AnimPropColor> Finish() {
-    auto o = flatbuffers::Offset<AnimPropColor>(fbb_.EndTable(start_, 2));
+    auto o = flatbuffers::Offset<AnimPropColor>(fbb_.EndTable(start_, 4));
     return o;
   }
 };
 
 inline flatbuffers::Offset<AnimPropColor> CreateAnimPropColor(flatbuffers::FlatBufferBuilder &_fbb,
     float frame = 0.0f,
-    const ColorRGBA *value = 0) {
+    const ColorRGBA *value = 0,
+    flatbuffers::Offset<flatbuffers::String> curveType = 0,
+    flatbuffers::Offset<flatbuffers::Vector<float>> curveData = 0) {
   AnimPropColorBuilder builder_(_fbb);
+  builder_.add_curveData(curveData);
+  builder_.add_curveType(curveType);
   builder_.add_value(value);
   builder_.add_frame(frame);
   return builder_.Finish();
 }
 
+inline flatbuffers::Offset<AnimPropColor> CreateAnimPropColorDirect(flatbuffers::FlatBufferBuilder &_fbb,
+    float frame = 0.0f,
+    const ColorRGBA *value = 0,
+    const char *curveType = nullptr,
+    const std::vector<float> *curveData = nullptr) {
+  return CreateAnimPropColor(_fbb, frame, value, curveType ? _fbb.CreateString(curveType) : 0, curveData ? _fbb.CreateVector<float>(*curveData) : 0);
+}
+
 struct AnimPropOpacity FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
   enum {
     VT_FRAME = 4,
-    VT_VALUE = 6
+    VT_VALUE = 6,
+    VT_CURVETYPE = 8,
+    VT_CURVEDATA = 10
   };
   float frame() const { return GetField<float>(VT_FRAME, 0.0f); }
   float value() const { return GetField<float>(VT_VALUE, 0.0f); }
+  const flatbuffers::String *curveType() const { return GetPointer<const flatbuffers::String *>(VT_CURVETYPE); }
+  const flatbuffers::Vector<float> *curveData() const { return GetPointer<const flatbuffers::Vector<float> *>(VT_CURVEDATA); }
   bool Verify(flatbuffers::Verifier &verifier) const {
     return VerifyTableStart(verifier) &&
            VerifyField<float>(verifier, VT_FRAME) &&
            VerifyField<float>(verifier, VT_VALUE) &&
+           VerifyField<flatbuffers::uoffset_t>(verifier, VT_CURVETYPE) &&
+           verifier.Verify(curveType()) &&
+           VerifyField<flatbuffers::uoffset_t>(verifier, VT_CURVEDATA) &&
+           verifier.Verify(curveData()) &&
            verifier.EndTable();
   }
 };
@@ -3406,34 +3702,56 @@ struct AnimPropOpacityBuilder {
   flatbuffers::uoffset_t start_;
   void add_frame(float frame) { fbb_.AddElement<float>(AnimPropOpacity::VT_FRAME, frame, 0.0f); }
   void add_value(float value) { fbb_.AddElement<float>(AnimPropOpacity::VT_VALUE, value, 0.0f); }
+  void add_curveType(flatbuffers::Offset<flatbuffers::String> curveType) { fbb_.AddOffset(AnimPropOpacity::VT_CURVETYPE, curveType); }
+  void add_curveData(flatbuffers::Offset<flatbuffers::Vector<float>> curveData) { fbb_.AddOffset(AnimPropOpacity::VT_CURVEDATA, curveData); }
   AnimPropOpacityBuilder(flatbuffers::FlatBufferBuilder &_fbb) : fbb_(_fbb) { start_ = fbb_.StartTable(); }
   AnimPropOpacityBuilder &operator=(const AnimPropOpacityBuilder &);
   flatbuffers::Offset<AnimPropOpacity> Finish() {
-    auto o = flatbuffers::Offset<AnimPropOpacity>(fbb_.EndTable(start_, 2));
+    auto o = flatbuffers::Offset<AnimPropOpacity>(fbb_.EndTable(start_, 4));
     return o;
   }
 };
 
 inline flatbuffers::Offset<AnimPropOpacity> CreateAnimPropOpacity(flatbuffers::FlatBufferBuilder &_fbb,
     float frame = 0.0f,
-    float value = 0.0f) {
+    float value = 0.0f,
+    flatbuffers::Offset<flatbuffers::String> curveType = 0,
+    flatbuffers::Offset<flatbuffers::Vector<float>> curveData = 0) {
   AnimPropOpacityBuilder builder_(_fbb);
+  builder_.add_curveData(curveData);
+  builder_.add_curveType(curveType);
   builder_.add_value(value);
   builder_.add_frame(frame);
   return builder_.Finish();
 }
 
+inline flatbuffers::Offset<AnimPropOpacity> CreateAnimPropOpacityDirect(flatbuffers::FlatBufferBuilder &_fbb,
+    float frame = 0.0f,
+    float value = 0.0f,
+    const char *curveType = nullptr,
+    const std::vector<float> *curveData = nullptr) {
+  return CreateAnimPropOpacity(_fbb, frame, value, curveType ? _fbb.CreateString(curveType) : 0, curveData ? _fbb.CreateVector<float>(*curveData) : 0);
+}
+
 struct AnimPropAnchorX FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
   enum {
     VT_FRAME = 4,
-    VT_VALUE = 6
+    VT_VALUE = 6,
+    VT_CURVETYPE = 8,
+    VT_CURVEDATA = 10
   };
   float frame() const { return GetField<float>(VT_FRAME, 0.0f); }
   float value() const { return GetField<float>(VT_VALUE, 0.0f); }
+  const flatbuffers::String *curveType() const { return GetPointer<const flatbuffers::String *>(VT_CURVETYPE); }
+  const flatbuffers::Vector<float> *curveData() const { return GetPointer<const flatbuffers::Vector<float> *>(VT_CURVEDATA); }
   bool Verify(flatbuffers::Verifier &verifier) const {
     return VerifyTableStart(verifier) &&
            VerifyField<float>(verifier, VT_FRAME) &&
            VerifyField<float>(verifier, VT_VALUE) &&
+           VerifyField<flatbuffers::uoffset_t>(verifier, VT_CURVETYPE) &&
+           verifier.Verify(curveType()) &&
+           VerifyField<flatbuffers::uoffset_t>(verifier, VT_CURVEDATA) &&
+           verifier.Verify(curveData()) &&
            verifier.EndTable();
   }
 };
@@ -3443,34 +3761,56 @@ struct AnimPropAnchorXBuilder {
   flatbuffers::uoffset_t start_;
   void add_frame(float frame) { fbb_.AddElement<float>(AnimPropAnchorX::VT_FRAME, frame, 0.0f); }
   void add_value(float value) { fbb_.AddElement<float>(AnimPropAnchorX::VT_VALUE, value, 0.0f); }
+  void add_curveType(flatbuffers::Offset<flatbuffers::String> curveType) { fbb_.AddOffset(AnimPropAnchorX::VT_CURVETYPE, curveType); }
+  void add_curveData(flatbuffers::Offset<flatbuffers::Vector<float>> curveData) { fbb_.AddOffset(AnimPropAnchorX::VT_CURVEDATA, curveData); }
   AnimPropAnchorXBuilder(flatbuffers::FlatBufferBuilder &_fbb) : fbb_(_fbb) { start_ = fbb_.StartTable(); }
   AnimPropAnchorXBuilder &operator=(const AnimPropAnchorXBuilder &);
   flatbuffers::Offset<AnimPropAnchorX> Finish() {
-    auto o = flatbuffers::Offset<AnimPropAnchorX>(fbb_.EndTable(start_, 2));
+    auto o = flatbuffers::Offset<AnimPropAnchorX>(fbb_.EndTable(start_, 4));
     return o;
   }
 };
 
 inline flatbuffers::Offset<AnimPropAnchorX> CreateAnimPropAnchorX(flatbuffers::FlatBufferBuilder &_fbb,
     float frame = 0.0f,
-    float value = 0.0f) {
+    float value = 0.0f,
+    flatbuffers::Offset<flatbuffers::String> curveType = 0,
+    flatbuffers::Offset<flatbuffers::Vector<float>> curveData = 0) {
   AnimPropAnchorXBuilder builder_(_fbb);
+  builder_.add_curveData(curveData);
+  builder_.add_curveType(curveType);
   builder_.add_value(value);
   builder_.add_frame(frame);
   return builder_.Finish();
 }
 
+inline flatbuffers::Offset<AnimPropAnchorX> CreateAnimPropAnchorXDirect(flatbuffers::FlatBufferBuilder &_fbb,
+    float frame = 0.0f,
+    float value = 0.0f,
+    const char *curveType = nullptr,
+    const std::vector<float> *curveData = nullptr) {
+  return CreateAnimPropAnchorX(_fbb, frame, value, curveType ? _fbb.CreateString(curveType) : 0, curveData ? _fbb.CreateVector<float>(*curveData) : 0);
+}
+
 struct AnimPropAnchorY FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
   enum {
     VT_FRAME = 4,
-    VT_VALUE = 6
+    VT_VALUE = 6,
+    VT_CURVETYPE = 8,
+    VT_CURVEDATA = 10
   };
   float frame() const { return GetField<float>(VT_FRAME, 0.0f); }
   float value() const { return GetField<float>(VT_VALUE, 0.0f); }
+  const flatbuffers::String *curveType() const { return GetPointer<const flatbuffers::String *>(VT_CURVETYPE); }
+  const flatbuffers::Vector<float> *curveData() const { return GetPointer<const flatbuffers::Vector<float> *>(VT_CURVEDATA); }
   bool Verify(flatbuffers::Verifier &verifier) const {
     return VerifyTableStart(verifier) &&
            VerifyField<float>(verifier, VT_FRAME) &&
            VerifyField<float>(verifier, VT_VALUE) &&
+           VerifyField<flatbuffers::uoffset_t>(verifier, VT_CURVETYPE) &&
+           verifier.Verify(curveType()) &&
+           VerifyField<flatbuffers::uoffset_t>(verifier, VT_CURVEDATA) &&
+           verifier.Verify(curveData()) &&
            verifier.EndTable();
   }
 };
@@ -3480,34 +3820,56 @@ struct AnimPropAnchorYBuilder {
   flatbuffers::uoffset_t start_;
   void add_frame(float frame) { fbb_.AddElement<float>(AnimPropAnchorY::VT_FRAME, frame, 0.0f); }
   void add_value(float value) { fbb_.AddElement<float>(AnimPropAnchorY::VT_VALUE, value, 0.0f); }
+  void add_curveType(flatbuffers::Offset<flatbuffers::String> curveType) { fbb_.AddOffset(AnimPropAnchorY::VT_CURVETYPE, curveType); }
+  void add_curveData(flatbuffers::Offset<flatbuffers::Vector<float>> curveData) { fbb_.AddOffset(AnimPropAnchorY::VT_CURVEDATA, curveData); }
   AnimPropAnchorYBuilder(flatbuffers::FlatBufferBuilder &_fbb) : fbb_(_fbb) { start_ = fbb_.StartTable(); }
   AnimPropAnchorYBuilder &operator=(const AnimPropAnchorYBuilder &);
   flatbuffers::Offset<AnimPropAnchorY> Finish() {
-    auto o = flatbuffers::Offset<AnimPropAnchorY>(fbb_.EndTable(start_, 2));
+    auto o = flatbuffers::Offset<AnimPropAnchorY>(fbb_.EndTable(start_, 4));
     return o;
   }
 };
 
 inline flatbuffers::Offset<AnimPropAnchorY> CreateAnimPropAnchorY(flatbuffers::FlatBufferBuilder &_fbb,
     float frame = 0.0f,
-    float value = 0.0f) {
+    float value = 0.0f,
+    flatbuffers::Offset<flatbuffers::String> curveType = 0,
+    flatbuffers::Offset<flatbuffers::Vector<float>> curveData = 0) {
   AnimPropAnchorYBuilder builder_(_fbb);
+  builder_.add_curveData(curveData);
+  builder_.add_curveType(curveType);
   builder_.add_value(value);
   builder_.add_frame(frame);
   return builder_.Finish();
 }
 
+inline flatbuffers::Offset<AnimPropAnchorY> CreateAnimPropAnchorYDirect(flatbuffers::FlatBufferBuilder &_fbb,
+    float frame = 0.0f,
+    float value = 0.0f,
+    const char *curveType = nullptr,
+    const std::vector<float> *curveData = nullptr) {
+  return CreateAnimPropAnchorY(_fbb, frame, value, curveType ? _fbb.CreateString(curveType) : 0, curveData ? _fbb.CreateVector<float>(*curveData) : 0);
+}
+
 struct AnimPropSkewX FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
   enum {
     VT_FRAME = 4,
-    VT_VALUE = 6
+    VT_VALUE = 6,
+    VT_CURVETYPE = 8,
+    VT_CURVEDATA = 10
   };
   float frame() const { return GetField<float>(VT_FRAME, 0.0f); }
   float value() const { return GetField<float>(VT_VALUE, 0.0f); }
+  const flatbuffers::String *curveType() const { return GetPointer<const flatbuffers::String *>(VT_CURVETYPE); }
+  const flatbuffers::Vector<float> *curveData() const { return GetPointer<const flatbuffers::Vector<float> *>(VT_CURVEDATA); }
   bool Verify(flatbuffers::Verifier &verifier) const {
     return VerifyTableStart(verifier) &&
            VerifyField<float>(verifier, VT_FRAME) &&
            VerifyField<float>(verifier, VT_VALUE) &&
+           VerifyField<flatbuffers::uoffset_t>(verifier, VT_CURVETYPE) &&
+           verifier.Verify(curveType()) &&
+           VerifyField<flatbuffers::uoffset_t>(verifier, VT_CURVEDATA) &&
+           verifier.Verify(curveData()) &&
            verifier.EndTable();
   }
 };
@@ -3517,34 +3879,56 @@ struct AnimPropSkewXBuilder {
   flatbuffers::uoffset_t start_;
   void add_frame(float frame) { fbb_.AddElement<float>(AnimPropSkewX::VT_FRAME, frame, 0.0f); }
   void add_value(float value) { fbb_.AddElement<float>(AnimPropSkewX::VT_VALUE, value, 0.0f); }
+  void add_curveType(flatbuffers::Offset<flatbuffers::String> curveType) { fbb_.AddOffset(AnimPropSkewX::VT_CURVETYPE, curveType); }
+  void add_curveData(flatbuffers::Offset<flatbuffers::Vector<float>> curveData) { fbb_.AddOffset(AnimPropSkewX::VT_CURVEDATA, curveData); }
   AnimPropSkewXBuilder(flatbuffers::FlatBufferBuilder &_fbb) : fbb_(_fbb) { start_ = fbb_.StartTable(); }
   AnimPropSkewXBuilder &operator=(const AnimPropSkewXBuilder &);
   flatbuffers::Offset<AnimPropSkewX> Finish() {
-    auto o = flatbuffers::Offset<AnimPropSkewX>(fbb_.EndTable(start_, 2));
+    auto o = flatbuffers::Offset<AnimPropSkewX>(fbb_.EndTable(start_, 4));
     return o;
   }
 };
 
 inline flatbuffers::Offset<AnimPropSkewX> CreateAnimPropSkewX(flatbuffers::FlatBufferBuilder &_fbb,
     float frame = 0.0f,
-    float value = 0.0f) {
+    float value = 0.0f,
+    flatbuffers::Offset<flatbuffers::String> curveType = 0,
+    flatbuffers::Offset<flatbuffers::Vector<float>> curveData = 0) {
   AnimPropSkewXBuilder builder_(_fbb);
+  builder_.add_curveData(curveData);
+  builder_.add_curveType(curveType);
   builder_.add_value(value);
   builder_.add_frame(frame);
   return builder_.Finish();
 }
 
+inline flatbuffers::Offset<AnimPropSkewX> CreateAnimPropSkewXDirect(flatbuffers::FlatBufferBuilder &_fbb,
+    float frame = 0.0f,
+    float value = 0.0f,
+    const char *curveType = nullptr,
+    const std::vector<float> *curveData = nullptr) {
+  return CreateAnimPropSkewX(_fbb, frame, value, curveType ? _fbb.CreateString(curveType) : 0, curveData ? _fbb.CreateVector<float>(*curveData) : 0);
+}
+
 struct AnimPropSkewY FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
   enum {
     VT_FRAME = 4,
-    VT_VALUE = 6
+    VT_VALUE = 6,
+    VT_CURVETYPE = 8,
+    VT_CURVEDATA = 10
   };
   float frame() const { return GetField<float>(VT_FRAME, 0.0f); }
   float value() const { return GetField<float>(VT_VALUE, 0.0f); }
+  const flatbuffers::String *curveType() const { return GetPointer<const flatbuffers::String *>(VT_CURVETYPE); }
+  const flatbuffers::Vector<float> *curveData() const { return GetPointer<const flatbuffers::Vector<float> *>(VT_CURVEDATA); }
   bool Verify(flatbuffers::Verifier &verifier) const {
     return VerifyTableStart(verifier) &&
            VerifyField<float>(verifier, VT_FRAME) &&
            VerifyField<float>(verifier, VT_VALUE) &&
+           VerifyField<flatbuffers::uoffset_t>(verifier, VT_CURVETYPE) &&
+           verifier.Verify(curveType()) &&
+           VerifyField<flatbuffers::uoffset_t>(verifier, VT_CURVEDATA) &&
+           verifier.Verify(curveData()) &&
            verifier.EndTable();
   }
 };
@@ -3554,20 +3938,71 @@ struct AnimPropSkewYBuilder {
   flatbuffers::uoffset_t start_;
   void add_frame(float frame) { fbb_.AddElement<float>(AnimPropSkewY::VT_FRAME, frame, 0.0f); }
   void add_value(float value) { fbb_.AddElement<float>(AnimPropSkewY::VT_VALUE, value, 0.0f); }
+  void add_curveType(flatbuffers::Offset<flatbuffers::String> curveType) { fbb_.AddOffset(AnimPropSkewY::VT_CURVETYPE, curveType); }
+  void add_curveData(flatbuffers::Offset<flatbuffers::Vector<float>> curveData) { fbb_.AddOffset(AnimPropSkewY::VT_CURVEDATA, curveData); }
   AnimPropSkewYBuilder(flatbuffers::FlatBufferBuilder &_fbb) : fbb_(_fbb) { start_ = fbb_.StartTable(); }
   AnimPropSkewYBuilder &operator=(const AnimPropSkewYBuilder &);
   flatbuffers::Offset<AnimPropSkewY> Finish() {
-    auto o = flatbuffers::Offset<AnimPropSkewY>(fbb_.EndTable(start_, 2));
+    auto o = flatbuffers::Offset<AnimPropSkewY>(fbb_.EndTable(start_, 4));
     return o;
   }
 };
 
 inline flatbuffers::Offset<AnimPropSkewY> CreateAnimPropSkewY(flatbuffers::FlatBufferBuilder &_fbb,
     float frame = 0.0f,
-    float value = 0.0f) {
+    float value = 0.0f,
+    flatbuffers::Offset<flatbuffers::String> curveType = 0,
+    flatbuffers::Offset<flatbuffers::Vector<float>> curveData = 0) {
   AnimPropSkewYBuilder builder_(_fbb);
+  builder_.add_curveData(curveData);
+  builder_.add_curveType(curveType);
   builder_.add_value(value);
   builder_.add_frame(frame);
+  return builder_.Finish();
+}
+
+inline flatbuffers::Offset<AnimPropSkewY> CreateAnimPropSkewYDirect(flatbuffers::FlatBufferBuilder &_fbb,
+    float frame = 0.0f,
+    float value = 0.0f,
+    const char *curveType = nullptr,
+    const std::vector<float> *curveData = nullptr) {
+  return CreateAnimPropSkewY(_fbb, frame, value, curveType ? _fbb.CreateString(curveType) : 0, curveData ? _fbb.CreateVector<float>(*curveData) : 0);
+}
+
+struct LabelOutline FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
+  enum {
+    VT_COLOR = 4,
+    VT_WIDTH = 6
+  };
+  const ColorRGBA *color() const { return GetStruct<const ColorRGBA *>(VT_COLOR); }
+  float width() const { return GetField<float>(VT_WIDTH, 0.0f); }
+  bool Verify(flatbuffers::Verifier &verifier) const {
+    return VerifyTableStart(verifier) &&
+           VerifyField<ColorRGBA>(verifier, VT_COLOR) &&
+           VerifyField<float>(verifier, VT_WIDTH) &&
+           verifier.EndTable();
+  }
+};
+
+struct LabelOutlineBuilder {
+  flatbuffers::FlatBufferBuilder &fbb_;
+  flatbuffers::uoffset_t start_;
+  void add_color(const ColorRGBA *color) { fbb_.AddStruct(LabelOutline::VT_COLOR, color); }
+  void add_width(float width) { fbb_.AddElement<float>(LabelOutline::VT_WIDTH, width, 0.0f); }
+  LabelOutlineBuilder(flatbuffers::FlatBufferBuilder &_fbb) : fbb_(_fbb) { start_ = fbb_.StartTable(); }
+  LabelOutlineBuilder &operator=(const LabelOutlineBuilder &);
+  flatbuffers::Offset<LabelOutline> Finish() {
+    auto o = flatbuffers::Offset<LabelOutline>(fbb_.EndTable(start_, 2));
+    return o;
+  }
+};
+
+inline flatbuffers::Offset<LabelOutline> CreateLabelOutline(flatbuffers::FlatBufferBuilder &_fbb,
+    const ColorRGBA *color = 0,
+    float width = 0.0f) {
+  LabelOutlineBuilder builder_(_fbb);
+  builder_.add_width(width);
+  builder_.add_color(color);
   return builder_.Finish();
 }
 
@@ -3595,6 +4030,7 @@ inline bool VerifyAnyNode(flatbuffers::Verifier &verifier, const void *union_obj
     case AnyNode_PageView: return verifier.VerifyTable(reinterpret_cast<const PageView *>(union_obj));
     case AnyNode_Mask: return verifier.VerifyTable(reinterpret_cast<const Mask *>(union_obj));
     case AnyNode_DragonBones: return verifier.VerifyTable(reinterpret_cast<const DragonBones *>(union_obj));
+    case AnyNode_MotionStreak: return verifier.VerifyTable(reinterpret_cast<const MotionStreak *>(union_obj));
     default: return false;
   }
 }

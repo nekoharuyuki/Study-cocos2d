@@ -46,6 +46,12 @@
 		521A8E6419F0C34300D177D7 /* Default-667h@2x.png in Resources */ = {isa = PBXBuildFile; fileRef = 521A8E6219F0C34300D177D7 /* Default-667h@2x.png */; };
 		521A8E6519F0C34300D177D7 /* Default-736h@3x.png in Resources */ = {isa = PBXBuildFile; fileRef = 521A8E6319F0C34300D177D7 /* Default-736h@3x.png */; };
 		52B47A471A53D09C004E4C60 /* Security.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 52B47A461A53D09B004E4C60 /* Security.framework */; };
+		80743DBD208E4CD900540EBB /* Character.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 80743DB6208E4CD900540EBB /* Character.cpp */; };
+		80743DBE208E4CD900540EBB /* Character.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 80743DB6208E4CD900540EBB /* Character.cpp */; };
+		80743DBF208E4CD900540EBB /* BallSprite.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 80743DB9208E4CD900540EBB /* BallSprite.cpp */; };
+		80743DC0208E4CD900540EBB /* BallSprite.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 80743DB9208E4CD900540EBB /* BallSprite.cpp */; };
+		80743DC1208E4CD900540EBB /* GameLayer.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 80743DBA208E4CD900540EBB /* GameLayer.cpp */; };
+		80743DC2208E4CD900540EBB /* GameLayer.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 80743DBA208E4CD900540EBB /* GameLayer.cpp */; };
 		80787D6B1F979EB90057088B /* libluacocos2d Mac.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 80787D681F979EB90057088B /* libluacocos2d Mac.a */; };
 		80939BAF1F953D2600AFA4E3 /* AppDelegate.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 80939B931F953CE800AFA4E3 /* AppDelegate.cpp */; };
 		80939BB01F953D2600AFA4E3 /* AppDelegate.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 80939B931F953CE800AFA4E3 /* AppDelegate.cpp */; };
@@ -280,6 +286,12 @@
 		521A8E6219F0C34300D177D7 /* Default-667h@2x.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "Default-667h@2x.png"; sourceTree = "<group>"; };
 		521A8E6319F0C34300D177D7 /* Default-736h@3x.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "Default-736h@3x.png"; sourceTree = "<group>"; };
 		52B47A461A53D09B004E4C60 /* Security.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Security.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS.sdk/System/Library/Frameworks/Security.framework; sourceTree = DEVELOPER_DIR; };
+		80743DB5208E4CD900540EBB /* BallSprite.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = BallSprite.h; sourceTree = "<group>"; };
+		80743DB6208E4CD900540EBB /* Character.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = Character.cpp; sourceTree = "<group>"; };
+		80743DB7208E4CD900540EBB /* Character.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = Character.h; sourceTree = "<group>"; };
+		80743DB8208E4CD900540EBB /* GameLayer.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = GameLayer.h; sourceTree = "<group>"; };
+		80743DB9208E4CD900540EBB /* BallSprite.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = BallSprite.cpp; sourceTree = "<group>"; };
+		80743DBA208E4CD900540EBB /* GameLayer.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = GameLayer.cpp; sourceTree = "<group>"; };
 		80787D681F979EB90057088B /* libluacocos2d Mac.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = "libluacocos2d Mac.a"; path = "../../../../Library/Developer/Xcode/DerivedData/AppCocos-btnpdfrtwyztmhhdmmlaezalkmam/Build/Products/Debug/libluacocos2d Mac.a"; sourceTree = "<group>"; };
 		80939B131F953CC900AFA4E3 /* creator */ = {isa = PBXFileReference; lastKnownFileType = folder; path = creator; sourceTree = "<group>"; };
 		80939B141F953CC900AFA4E3 /* System */ = {isa = PBXFileReference; lastKnownFileType = folder; path = System; sourceTree = "<group>"; };
@@ -513,14 +525,14 @@
 		29B97314FDCFA39411CA2CEA /* CustomTemplate */ = {
 			isa = PBXGroup;
 			children = (
+				1AC6FAE5180E9839004C840B /* cocos2d_libs.xcodeproj */,
 				80E59DDB1F978BBD00DE23D4 /* cocos2d_lua_bindings.xcodeproj */,
 				46880B8319C43A87006E1F66 /* Classes */,
-				46880B7519C43A67006E1F66 /* Resources */,
-				1AC6FAE5180E9839004C840B /* cocos2d_libs.xcodeproj */,
 				29B97323FDCFA39411CA2CEA /* Frameworks */,
 				080E96DDFE201D6D7F000001 /* ios */,
 				503AE10617EB990700D1A890 /* mac */,
 				19C28FACFE9D520D11CA2CBB /* Products */,
+				46880B7519C43A67006E1F66 /* Resources */,
 			);
 			name = CustomTemplate;
 			sourceTree = "<group>";
@@ -627,6 +639,19 @@
 			path = ios;
 			sourceTree = SOURCE_ROOT;
 		};
+		80743DB4208E4CD900540EBB /* Puzzle */ = {
+			isa = PBXGroup;
+			children = (
+				80743DB9208E4CD900540EBB /* BallSprite.cpp */,
+				80743DB5208E4CD900540EBB /* BallSprite.h */,
+				80743DB6208E4CD900540EBB /* Character.cpp */,
+				80743DB7208E4CD900540EBB /* Character.h */,
+				80743DBA208E4CD900540EBB /* GameLayer.cpp */,
+				80743DB8208E4CD900540EBB /* GameLayer.h */,
+			);
+			path = Puzzle;
+			sourceTree = "<group>";
+		};
 		80939B801F953CE800AFA4E3 /* System */ = {
 			isa = PBXGroup;
 			children = (
@@ -699,6 +724,7 @@
 				80939B9B1F953CE800AFA4E3 /* KawazCatch */,
 				80939BA11F953CE800AFA4E3 /* KawazCrash */,
 				80939BA31F953CE800AFA4E3 /* KawazJet */,
+				80743DB4208E4CD900540EBB /* Puzzle */,
 			);
 			path = TestProjects;
 			sourceTree = "<group>";
@@ -1213,6 +1239,7 @@
 				80E59DA71F954D3700DE23D4 /* Animation.cpp in Sources */,
 				80939C091F953E8F00AFA4E3 /* MathHelper.cpp in Sources */,
 				503AE10117EB989F00D1A890 /* main.m in Sources */,
+				80743DC1208E4CD900540EBB /* GameLayer.cpp in Sources */,
 				80E59DA41F954D2100DE23D4 /* Intersection.cpp in Sources */,
 				80E59DCF1F954DBC00DE23D4 /* JSONDataParser.cpp in Sources */,
 				80939BB91F953D9300AFA4E3 /* KawazJet_MainScene.cpp in Sources */,
@@ -1241,6 +1268,8 @@
 				80E59DB11F954D5600DE23D4 /* Bone.cpp in Sources */,
 				80939BB71F953D8A00AFA4E3 /* KawazCatchTitle.cpp in Sources */,
 				80E59DC71F954DA500DE23D4 /* DragonBonesData.cpp in Sources */,
+				80743DBF208E4CD900540EBB /* BallSprite.cpp in Sources */,
+				80743DBD208E4CD900540EBB /* Character.cpp in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1258,6 +1287,7 @@
 				80939BBC1F953D9800AFA4E3 /* KawazJet_Player.cpp in Sources */,
 				80939BC01F953DA100AFA4E3 /* KawazJet_TitleScene.cpp in Sources */,
 				80E59DB01F954D5100DE23D4 /* Armature.cpp in Sources */,
+				80743DC0208E4CD900540EBB /* BallSprite.cpp in Sources */,
 				503AE10517EB98FF00D1A890 /* main.cpp in Sources */,
 				80E59DC81F954DA500DE23D4 /* DragonBonesData.cpp in Sources */,
 				80E59DD41F954DD300DE23D4 /* PageView.cpp in Sources */,
@@ -1271,6 +1301,7 @@
 				80E59DD01F954DBD00DE23D4 /* JSONDataParser.cpp in Sources */,
 				80939BB81F953D8A00AFA4E3 /* KawazCatchTitle.cpp in Sources */,
 				80E59DAC1F954D4400DE23D4 /* TimelineState.cpp in Sources */,
+				80743DBE208E4CD900540EBB /* Character.cpp in Sources */,
 				80E59D9C1F954D0800DE23D4 /* AnimationManager.cpp in Sources */,
 				80939C021F953E7500AFA4E3 /* AudioManager.cpp in Sources */,
 				80DDE4C81F9C6F9E00AE79E2 /* BaseTest.cpp in Sources */,
@@ -1279,6 +1310,7 @@
 				80E59DCA1F954DAB00DE23D4 /* FrameData.cpp in Sources */,
 				80E59DAE1F954D4900DE23D4 /* WorldClock.cpp in Sources */,
 				80E59DA31F954D2000DE23D4 /* Intersection.cpp in Sources */,
+				80743DC2208E4CD900540EBB /* GameLayer.cpp in Sources */,
 				80E59DA61F954D2A00DE23D4 /* CreatorReader.cpp in Sources */,
 				80939BBA1F953D9400AFA4E3 /* KawazJet_MainScene.cpp in Sources */,
 				80E59DC21F954D8E00DE23D4 /* BaseFactory.cpp in Sources */,

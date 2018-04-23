@@ -26,9 +26,15 @@
 #include "AnimateClip.h"
 #include "AnimationClip.h"
 #include "AnimationClipProperties.h"
+#include "Easing.h"
+#include "Bezier.h"
+
+#include <functional>
 
 namespace  {
-    
+
+    creator::AnimationClip* g_clip = nullptr;
+
     // -1: invalid index
     // -2: haven't reached first frame, so it should be the same as first frame
     template<typename P>
@@ -36,121 +42,102 @@ namespace  {
     {
         if (properties.empty())
             return -1;
-        
+
         if (properties.front().frame > elapsed)
             return -2;
 
         if (properties.back().frame <= elapsed)
             return properties.size() - 1;
-        
+
         for (int i = 0, len = properties.size(); i < len; ++i)
         {
             const auto& prop = properties[i];
             if (prop.frame > elapsed)
                 return i - 1;
         }
-        
+
         return -1;
     }
-    
+
     template<typename P>
     float getPercent(const P& p1, const P& p2, float elapsed)
     {
-        return (elapsed - p1.frame) / (p2.frame - p1.frame);
-    }
-    
-    void assignVec2(const cocos2d::Vec2 &src, cocos2d::Vec2& dst)
-    {
-        dst.x = src.x;
-        dst.y = src.y;
-    }
-    
-    bool getNextPos(const std::vector<creator::AnimPropPosition> &properties, float elapsed, cocos2d::Vec2 &out)
-    {
-        int index = getValidIndex(properties, elapsed);
-        if (index == -1)
-            return false;
-        
-        if (index == -2)
+        const auto& curveType = p1.curveType;
+        const auto& curveData = p1.curveData;
+        auto ratio = (elapsed - p1.frame) / (p2.frame - p1.frame);
+
+        if (!curveType.empty())
         {
-            assignVec2(properties.front().value, out);
-            return true;
+            const auto& easingFunc = creator::Easing::getFunction(curveType);
+            ratio = easingFunc(ratio);
         }
-        
-        if (index == properties.size() -1)
-        {
-            assignVec2(properties.back().value, out);
-            return true;
-        }
-        
-        const auto& prop = properties[index];
-        const auto& nextProp = properties[index+1];
-        float percent = getPercent(prop, nextProp, elapsed);
-        out.x = prop.value.x + percent * (nextProp.value.x - prop.value.x);
-        out.y = prop.value.y + percent * (nextProp.value.y - prop.value.y);
-        
-        return true;
+        if (curveData.size() > 0)
+            ratio = creator::Bazier::computeBezier(curveData, ratio);
+
+        return ratio;
     }
-    
-    void assignColor(const cocos2d::Color3B& src, cocos2d::Color3B& dst)
+
+    void assignValue(float src, float& dst)
+    {
+        dst = src;
+    }
+
+    void assignValue(const cocos2d::Color3B& src, cocos2d::Color3B& dst)
     {
         dst.r = src.r;
         dst.g = src.g;
         dst.b = src.b;
     }
-    
-    bool getNextColor(const std::vector<creator::AnimPropColor> &properties, float elapsed, cocos2d::Color3B &out)
+
+    void assignValue(const cocos2d::Vec2& src, cocos2d::Vec2& dst)
     {
-        int index = getValidIndex(properties, elapsed);
-        if (index == -1)
-            return false;
-        
-        if (index == -2)
-        {
-            assignColor(properties.front().value, out);
-            return true;
-        }
-        
-        if (index == properties.size() -1)
-        {
-            assignColor(properties.back().value, out);
-            return true;
-        }
-        
-        const auto& prop = properties[index];
-        const auto& nextProp = properties[index+1];
-        float percent = getPercent(prop, nextProp, elapsed);
-        out.r = prop.value.r + percent * (nextProp.value.r - prop.value.r);
-        out.g = prop.value.g + percent * (nextProp.value.g - prop.value.g);
-        out.b = prop.value.b + percent * (nextProp.value.b - prop.value.b);
-        
-        return true;
+        dst.x = src.x;
+        dst.y = src.y;
     }
-    
-    template<typename P>
-    bool getNextValue(const P & properties, float elapsed, float &out)
+
+    template<typename T>
+    void computeNextValue(T start, T end, float percent, T &out)
+    {
+        out = start + percent * (end - start);
+    }
+
+    void computeNextValue(const cocos2d::Color3B& start, const cocos2d::Color3B& end, float percent, cocos2d::Color3B& out)
+    {
+        computeNextValue(start.r, end.r, percent, out.r);
+        computeNextValue(start.g, end.g, percent, out.g);
+        computeNextValue(start.b, end.b, percent, out.b);
+    }
+
+    void computeNextValue(const cocos2d::Vec2& start, const cocos2d::Vec2& end, float percent, cocos2d::Vec2& out)
+    {
+        computeNextValue(start.x, end.x, percent, out.x);
+        computeNextValue(start.y, end.y, percent, out.y);
+    }
+
+    template<typename P, typename T>
+    bool getNextValue(const P & properties, float elapsed, T &out)
     {
         int index = getValidIndex(properties, elapsed);
         if (index == -1)
             return false;
-        
+
         if (index == -2)
         {
-            out = properties.front().value;
+            assignValue(properties.front().value, out);
             return true;
         }
-        
+
         if (index == properties.size() -1)
         {
-            out = properties.back().value;
+            assignValue(properties.back().value, out);
             return true;
         }
-        
+
         const auto& prop = properties[index];
         const auto& nextProp = properties[index+1];
         float percent = getPercent(prop, nextProp, elapsed);
-        out = prop.value + percent * (nextProp.value - prop.value);
-        
+        computeNextValue(prop.value, nextProp.value, percent, out);
+
         return true;
     }
 }
@@ -174,11 +161,17 @@ AnimateClip::AnimateClip()
 : _clip(nullptr)
 , _elapsed(0)
 , _rootTarget(nullptr)
+, _needStop(true)
+, _durationToStop(0.f)
 {
 }
 
 AnimateClip::~AnimateClip()
 {
+    // a loop animate might keep running until destruction, memory will leak if not stop it
+    if(_running)
+        stopAnimate();
+
     CC_SAFE_RELEASE(_clip);
     CC_SAFE_RELEASE(_rootTarget);
 }
@@ -191,6 +184,9 @@ void AnimateClip::startAnimate()
 
 void AnimateClip::stopAnimate()
 {
+    if (_endCallback)
+        _endCallback();
+
     unscheduleUpdate();
     // release self
     _running = false;
@@ -216,31 +212,39 @@ bool AnimateClip::initWithAnimationClip(cocos2d::Node* rootTarget, AnimationClip
     _clip = clip;
     _rootTarget = rootTarget;
     CC_SAFE_RETAIN(_rootTarget);
-    
+
     if (_clip)
     {
         _clip->retain();
-        _duration = _clip->getDuration();
+        _durationToStop = _clip->getDuration();
+
+        auto wrapMode = clip->getWrapMode();
+        if (wrapMode == AnimationClip::WrapMode::Loop
+            || wrapMode == AnimationClip::WrapMode::LoopReverse
+            || wrapMode == AnimationClip::WrapMode::PingPong  // PingPong and PingPongReverse are loop animations
+            || wrapMode == AnimationClip::WrapMode::PingPongReverse)
+            _needStop = false;
+
+        // assign it to be used in anonymous namespace
+        g_clip = _clip;
     }
-    
 
     return clip != nullptr;
 }
 
 void AnimateClip::update(float dt) {
     _elapsed += dt;
-    
-    const auto& animPropertiesVec = _clip->getAnimPropertiesVec();
-    
-    for (const auto& animProperties : animPropertiesVec)
-        doUpdate(animProperties);
 
-    if (_elapsed >= _duration)
+    if (_needStop && _elapsed >= _durationToStop)
     {
         stopAnimate();
-        if (_endCallback)
-            _endCallback();
+
+        return;
     }
+
+    const auto& allAnimProperties = _clip->getAnimProperties();
+    for (const auto& animProperties : allAnimProperties)
+        doUpdate(animProperties);
 }
 
 void AnimateClip::doUpdate(const AnimProperties& animProperties) const
@@ -248,55 +252,57 @@ void AnimateClip::doUpdate(const AnimProperties& animProperties) const
     auto target = getTarget(animProperties.path);
     if (target)
     {
+        auto elapsed = computeElapse();
+
         // update position
         cocos2d::Vec2 nextPos;
-        if (getNextPos(animProperties.animPosition, _elapsed, nextPos))
+        if (getNextValue(animProperties.animPosition, elapsed, nextPos))
             target->setPosition(nextPos);
 
         // update color
         cocos2d::Color3B nextColor;
-        if (getNextColor(animProperties.animColor, _elapsed, nextColor))
+        if (getNextValue(animProperties.animColor, elapsed, nextColor))
             target->setColor(nextColor);
 
         // update scaleX
         float nextValue;
-        if (getNextValue(animProperties.animScaleX, _elapsed, nextValue))
+        if (getNextValue(animProperties.animScaleX, elapsed, nextValue))
             target->setScaleX(nextValue);
 
         // update scaleY
-        if (getNextValue(animProperties.animScaleY, _elapsed, nextValue))
+        if (getNextValue(animProperties.animScaleY, elapsed, nextValue))
             target->setScaleY(nextValue);
 
         // rotation
-        if (getNextValue(animProperties.animRotation, _elapsed, nextValue))
+        if (getNextValue(animProperties.animRotation, elapsed, nextValue))
             target->setRotation(nextValue);
 
         // SkewX
-        if (getNextValue(animProperties.animSkewX, _elapsed, nextValue))
+        if (getNextValue(animProperties.animSkewX, elapsed, nextValue))
             target->setSkewX(nextValue);
 
         // SkewY
-        if (getNextValue(animProperties.animSkewY, _elapsed, nextValue))
+        if (getNextValue(animProperties.animSkewY, elapsed, nextValue))
             target->setSkewY(nextValue);
 
         // Opacity
-        if (getNextValue(animProperties.animOpacity, _elapsed, nextValue))
+        if (getNextValue(animProperties.animOpacity, elapsed, nextValue))
             target->setOpacity(nextValue);
 
         // anchor x
-        if (getNextValue(animProperties.animAnchorX, _elapsed, nextValue))
+        if (getNextValue(animProperties.animAnchorX, elapsed, nextValue))
             target->setAnchorPoint(cocos2d::Vec2(nextValue, target->getAnchorPoint().y));
 
         // anchor y
-        if (getNextValue(animProperties.animAnchorY, _elapsed, nextValue))
+        if (getNextValue(animProperties.animAnchorY, elapsed, nextValue))
             target->setAnchorPoint(cocos2d::Vec2(target->getAnchorPoint().x, nextValue));
 
         // positoin x
-        if (getNextValue(animProperties.animPositionX, _elapsed, nextValue))
+        if (getNextValue(animProperties.animPositionX, elapsed, nextValue))
             target->setPositionX(nextValue);
-        
+
         // position y
-        if (getNextValue(animProperties.animPositionY, _elapsed, nextValue))
+        if (getNextValue(animProperties.animPositionY, elapsed, nextValue))
             target->setPositionY(nextValue);
     }
 }
@@ -305,7 +311,7 @@ cocos2d::Node* AnimateClip::getTarget(const std::string &path) const
 {
     if (path.empty())
         return _rootTarget;
-    
+
     cocos2d::Node *ret = nullptr;
     _rootTarget->enumerateChildren(path, [&ret](cocos2d::Node* result) -> bool {
         ret = result;
@@ -313,3 +319,24 @@ cocos2d::Node* AnimateClip::getTarget(const std::string &path) const
     });
     return ret;
 }
+
+float AnimateClip::computeElapse() const
+{
+    auto elapsed = _elapsed;
+    auto duration = _clip->getDuration();
+
+    // as the time goes, _elapsed will be bigger than duration when _needStop = false
+    elapsed = fmodf(elapsed, duration);
+
+    const auto wrapMode = _clip->getWrapMode();
+    bool oddRound = (static_cast<int>(_elapsed / duration) % 2) == 0;
+    if (wrapMode == AnimationClip::WrapMode::Reverse  // reverse mode
+        || (wrapMode == AnimationClip::WrapMode::PingPong && !oddRound) // pingpong mode and it is the second round
+        || (wrapMode == AnimationClip::WrapMode::PingPongReverse && oddRound) // pingpongreverse mode and it is the first round
+        || (wrapMode == AnimationClip::WrapMode::LoopReverse)  // loop reverse mode, reverse again and again
+        )
+        elapsed = duration - elapsed;
+
+    return elapsed;
+}
+
