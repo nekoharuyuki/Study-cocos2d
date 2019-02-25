@@ -7,6 +7,7 @@
 
 ### Cocos2d-xに必要なもの
   * Cocos2d-xの本体
+    * https://cocos2d-x.org/
   * Python 2.7.x（Python 3.x ではダメだそうです）
   * JDK
   * Android SDK
